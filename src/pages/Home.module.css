@@ -1206,11 +1206,3 @@
   background: rgba(56, 189, 248, 0.2) !important;
   box-shadow: 0 0 14px var(--theme-glow, rgba(56, 189, 248, 0.4)) !important;
 }
-
-.serverBannerContainer {
-  width: 340px;
-  max-width: 92vw;
-  margin-top: 6px;
-  animation: fadeIn 0.3s ease-out;
-}
-

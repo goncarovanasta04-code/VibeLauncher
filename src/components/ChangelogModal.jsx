@@ -1,13 +1,47 @@
 import { X, Sparkles, CheckCircle2, ShieldCheck, Zap, Package, Palette, Cpu, Sliders, Monitor, Box } from 'lucide-react'
+import packageInfo from '../../package.json'
 import styles from './ChangelogModal.module.css'
 
 const RELEASES = [
   {
+    version: '1.4.0',
+    date: 'Сентябрь 2026',
+    title: 'Редизайн Liquid Glass, восстановление классической 3D-темы и Discord-сервер',
+    tag: 'Новейшее обновление',
+    highlight: true,
+    changes: [
+      {
+        icon: Box,
+        type: 'new',
+        title: 'Легендарная 3D тема «Полет кубиков» по умолчанию',
+        desc: 'Возвращен классический интерактивный 3D-полет сквозь пространство: кубики летят в камеру с плавной физикой облета и технической сеткой горизонта.',
+      },
+      {
+        icon: Sparkles,
+        type: 'new',
+        title: 'Премиальный дизайн «Liquid Glass»',
+        desc: 'Полная переработка всех модальных окон (Настройки, Моды, Темы, Вход) в стиле жидкого матового стекла с мягким размытием (backdrop-filter) и элегантными световыми бликами.',
+      },
+      {
+        icon: Palette,
+        type: 'opt',
+        title: 'Красочные карточки тем и 3D-превью',
+        desc: 'В меню тем добавлены высокодетализированные баннеры и живые интерактивные 3D-канвасы для каждой визуальной сцены.',
+      },
+      {
+        icon: ShieldCheck,
+        type: 'fix',
+        title: 'Автодобавление Discord-сервера в servers.dat',
+        desc: 'Лаунчер автоматически прописывает Discord-сервер в список серверов Minecraft (servers.dat) с аккуратным названием без лишних приставок.',
+      },
+    ],
+  },
+  {
     version: '1.3.9',
     date: 'Сентябрь 2026',
     title: 'Режим «Potato PC», защита от сбоев JVM и гарантированный запуск сборок',
-    tag: 'Новейшее обновление',
-    highlight: true,
+    tag: 'Предыдущий релиз',
+    highlight: false,
     changes: [
       {
         icon: Zap,
@@ -392,7 +426,7 @@ export default function ChangelogModal({ onClose }) {
         <div className={styles.footer}>
           <div className={styles.footerInfo}>
             <CheckCircle2 size={15} className={styles.footerCheckIcon} />
-            <span>У вас установлена самая свежая версия лаунчера (v1.3.5)</span>
+            <span>У вас установлена самая свежая версия лаунчера (v{packageInfo.version})</span>
           </div>
           <button type="button" className={styles.okBtn} onClick={onClose}>
             Понятно

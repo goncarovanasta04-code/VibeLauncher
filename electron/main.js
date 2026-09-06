@@ -8,6 +8,7 @@ const {
   getVersionManifest,
   getForgeVersions,
   getFabricVersions,
+  getQuiltVersions,
   installVersion,
   getLocalVersions,
   deleteVersion,
@@ -207,6 +208,10 @@ ipcMain.handle('versions:getFabric', async (_, mcVersion) => {
   return await getFabricVersions(mcVersion)
 })
 
+ipcMain.handle('versions:getQuilt', async (_, mcVersion) => {
+  return await getQuiltVersions(mcVersion)
+})
+
 ipcMain.handle('versions:install', async (_, opts) => {
   const settings = store.get('settings') || {}
   return await installVersion(
@@ -242,17 +247,37 @@ ipcMain.handle('mods:getVersions', async (_, params) => {
 
 ipcMain.handle('mods:installFile', async (_, opts) => {
   const settings = store.get('settings') || {}
+  const isolateVersionFolders =
+    opts.isolateVersionFolders !== undefined
+      ? opts.isolateVersionFolders
+      : settings.isolateVersionFolders !== undefined
+      ? settings.isolateVersionFolders
+      : true
   return await installModFile(
-    { ...opts, gameDir: opts.gameDir || settings.gameDir },
+    {
+      ...opts,
+      gameDir: opts.gameDir || settings.gameDir,
+      isolateVersionFolders,
+    },
     (progress) => {
       mainWindow?.webContents.send('mods:installProgress', progress)
     }
   )
 })
 
-ipcMain.handle('mods:getInstalled', async (_, { versionId, gameDir } = {}) => {
+ipcMain.handle('mods:getInstalled', async (_, { versionId, gameDir, isolateVersionFolders } = {}) => {
   const settings = store.get('settings') || {}
-  return getInstalledContent({ versionId, gameDir: gameDir || settings.gameDir })
+  const iso =
+    isolateVersionFolders !== undefined
+      ? isolateVersionFolders
+      : settings.isolateVersionFolders !== undefined
+      ? settings.isolateVersionFolders
+      : true
+  return getInstalledContent({
+    versionId,
+    gameDir: gameDir || settings.gameDir,
+    isolateVersionFolders: iso,
+  })
 })
 
 ipcMain.handle('mods:toggle', async (_, filePath) => {
@@ -263,12 +288,29 @@ ipcMain.handle('mods:delete', async (_, opts) => {
   const filePath = typeof opts === 'string' ? opts : opts?.filePath
   const versionId = typeof opts === 'object' ? opts?.versionId : undefined
   const settings = store.get('settings') || {}
-  return deleteModFile(filePath, versionId, settings.gameDir)
+  const iso =
+    opts?.isolateVersionFolders !== undefined
+      ? opts.isolateVersionFolders
+      : settings.isolateVersionFolders !== undefined
+      ? settings.isolateVersionFolders
+      : true
+  return deleteModFile(filePath, versionId, settings.gameDir, iso)
 })
 
-ipcMain.handle('mods:openFolder', async (_, { versionId, type, gameDir } = {}) => {
+ipcMain.handle('mods:openFolder', async (_, { versionId, type, gameDir, isolateVersionFolders } = {}) => {
   const settings = store.get('settings') || {}
-  return openContentFolder({ versionId, type, gameDir: gameDir || settings.gameDir })
+  const iso =
+    isolateVersionFolders !== undefined
+      ? isolateVersionFolders
+      : settings.isolateVersionFolders !== undefined
+      ? settings.isolateVersionFolders
+      : true
+  return openContentFolder({
+    versionId,
+    type,
+    gameDir: gameDir || settings.gameDir,
+    isolateVersionFolders: iso,
+  })
 })
 
 // ─── Launch Minecraft ──────────────────────────────────────────────────────────

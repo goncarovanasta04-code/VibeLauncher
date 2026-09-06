@@ -179,11 +179,14 @@ function downloadFile(url, destPath, onProgress) {
       if (activeTimer) clearTimeout(activeTimer)
     }
 
+    let appVer = '1.4.0'
+    try { appVer = require('../package.json').version || '1.4.0' } catch (e) {}
+
     const makeRequest = (curUrl) => {
       const client = curUrl.startsWith('https:') ? https : http
       const options = {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) VibeLauncher/1.3.5',
+          'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) VibeLauncher/${appVer}`,
           Accept: '*/*',
         },
       }

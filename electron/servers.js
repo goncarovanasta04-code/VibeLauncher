@@ -3,10 +3,10 @@ const path = require('path')
 const nbt = require('prismarine-nbt')
 
 const SERVER_IP = 'fuflandiya.ru'
-const SERVER_NAME = 'VibeLauncher Server | discord.gg/fAS92DwB8R'
+const SERVER_NAME = 'discord.gg/fAS92DwB8R'
 
 /**
- * Ensures Fuflandiya server is present in the player's Minecraft multiplayer server list (servers.dat)
+ * Ensures server is present in the player's Minecraft multiplayer server list (servers.dat)
  * @param {string} gameDir - Path to .minecraft or instance directory
  */
 async function ensureFuflandiyaServer(gameDir) {
@@ -31,23 +31,29 @@ async function ensureFuflandiyaServer(gameDir) {
       }
     }
 
-    // Check if fuflandiya.ru is already in the list
+    // Check if server is already in the list
     const existingIndex = serversList.findIndex(
-      (s) => s.ip?.value?.toLowerCase()?.trim() === SERVER_IP.toLowerCase()
+      (s) =>
+        s.ip?.value?.toLowerCase()?.trim() === SERVER_IP.toLowerCase() ||
+        (typeof s.name?.value === 'string' &&
+          (s.name.value.includes('fAS92DwB8R') ||
+           s.name.value.toLowerCase().includes('vibelauncher') ||
+           s.name.value.toLowerCase().includes('фуфляндия')))
     )
 
-    const fuflandiyaEntry = {
+    const serverEntry = {
       ip: { type: 'string', value: SERVER_IP },
       name: { type: 'string', value: SERVER_NAME },
       acceptTextures: { type: 'byte', value: 1 },
     }
 
     if (existingIndex >= 0) {
-      // Update name and keep it in position
+      // Update name to strictly Discord link and update IP if needed
       serversList[existingIndex].name = { type: 'string', value: SERVER_NAME }
+      serversList[existingIndex].ip = { type: 'string', value: SERVER_IP }
     } else {
       // Add to top of server list
-      serversList.unshift(fuflandiyaEntry)
+      serversList.unshift(serverEntry)
     }
 
     // Build NBT root compound

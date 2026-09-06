@@ -5,18 +5,21 @@ const path = require('path')
  * Key-value map of ultra-low Potato PC settings for Minecraft options.txt
  */
 const POTATO_MINECRAFT_OPTIONS = {
-  graphicsMode: '0', // Fast (0=fast, 1=fancy, 2=fabulous)
+  graphicsMode: '0', // Fast (0=fast, 1=fancy, 2=fabulous) - Modern 1.15+
+  fancyGraphics: 'false', // Legacy 1.7.10 - 1.14
   renderDistance: '4', // 4 chunks
   simulationDistance: '4',
   particles: '2', // 2=minimal
   clouds: '0', // 0=off
   renderClouds: 'false',
   ao: '0', // Smooth Lighting: off (0=off, 1=min, 2=max)
+  ambientOcclusion: '0', // Legacy smooth lighting
   enableVsync: 'false',
   entityShadows: 'false',
   entityDistanceScaling: '50', // 50%
   mipmapLevels: '0', // No mipmapping
-  framerateLimit: '60',
+  framerateLimit: '60', // Modern 1.13+
+  maxFps: '60', // Legacy 1.7.10 - 1.12.2
   biomeBlendRadius: '0',
   distortionEffects: '0.0',
   fovEffectScale: '0.0',
@@ -24,6 +27,7 @@ const POTATO_MINECRAFT_OPTIONS = {
   viewBobbing: 'false',
   glDebugVerbosity: '0',
   renderDistanceChunks: '4',
+  anaglyph3d: 'false',
 }
 
 /**

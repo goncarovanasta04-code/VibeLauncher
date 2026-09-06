@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import launcherIcon from '../assets/icon.png'
+import packageInfo from '../../package.json'
 import styles from './AppSplashScreen.module.css'
 
 /**
@@ -85,7 +86,7 @@ export default function AppSplashScreen({ onReady }) {
               <span className={styles.titleBold}>VIBE</span>
               <span className={styles.titleThin}>LAUNCHER</span>
             </div>
-            <span className={styles.versionPill}>v1.3.5</span>
+            <span className={styles.versionPill}>v{packageInfo.version}</span>
           </div>
 
           <div className={styles.statusRow}>

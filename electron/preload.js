@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('vibe', {
   getVersionManifest: () => ipcRenderer.invoke('versions:getManifest'),
   getForgeVersions: (mcVersion) => ipcRenderer.invoke('versions:getForge', mcVersion),
   getFabricVersions: (mcVersion) => ipcRenderer.invoke('versions:getFabric', mcVersion),
+  getQuiltVersions: (mcVersion) => ipcRenderer.invoke('versions:getQuilt', mcVersion),
   installVersion: (opts) => ipcRenderer.invoke('versions:install', opts),
   deleteVersion: (versionId, gameDir) => ipcRenderer.invoke('versions:delete', { versionId, gameDir }),
   onInstallProgress: (cb) => ipcRenderer.on('install:progress', (_, data) => cb(data)),

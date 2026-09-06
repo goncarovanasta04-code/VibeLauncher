@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Next-Gen 3D Canvas Animation Engine.
- * Supports multiple color themes (Monochrome, Cyber Matrix, Golden Nexus, Quantum Emerald).
- * Features smooth camera fly-through (shapes fly PAST the camera without disappearing),
- * multiple 3D wireframe polyhedra, and an infinite perspective horizon grid.
+ * Next-Gen 3D Fly-Through Canvas Animation Engine.
+ * Supports multiple color themes (Monochrome, Cyber Matrix, Golden Nexus, Quantum Emerald, Hyperspace, Crystals, Ender).
+ * Features smooth camera fly-through where 3D cubes and wireframe polyhedra fly directly INTO and PAST the camera,
+ * interactive mouse parallax, floating stardust, and an infinite perspective horizon grid.
  */
 export default function Monochrome3DBackground({
   paused = false,
-  colorMode = 'monochrome', // 'monochrome' | 'cyber' | 'gold' | 'emerald'
+  colorMode = 'monochrome', // 'monochrome' | 'cyber' | 'gold' | 'emerald' | 'hyperspace' | 'crystals' | 'ender'
+  sceneType = 'minimal-void',
 }) {
   const canvasRef = useRef(null)
 
@@ -66,11 +67,35 @@ export default function Monochrome3DBackground({
         edge: (alpha) => `rgba(16, 185, 129, ${alpha})`,
         vertex: (alpha) => `rgba(167, 243, 208, ${Math.min(1, alpha * 1.8)})`,
       },
+      hyperspace: {
+        bg: '#02040a',
+        grid: 'rgba(56, 189, 248, 0.12)',
+        gridHorizon: 'rgba(129, 140, 248, 0.22)',
+        star: (alpha) => `rgba(192, 132, 252, ${alpha})`,
+        edge: (alpha, i) => (i % 2 === 0 ? `rgba(56, 189, 248, ${alpha})` : `rgba(129, 140, 248, ${alpha})`),
+        vertex: (alpha, i) => (i % 2 === 0 ? `rgba(125, 211, 252, ${Math.min(1, alpha * 1.8)})` : `rgba(192, 132, 252, ${Math.min(1, alpha * 1.8)})`),
+      },
+      crystals: {
+        bg: '#06060c',
+        grid: 'rgba(236, 72, 153, 0.12)',
+        gridHorizon: 'rgba(139, 92, 246, 0.22)',
+        star: (alpha) => `rgba(244, 114, 182, ${alpha})`,
+        edge: (alpha, i) => (i % 2 === 0 ? `rgba(236, 72, 153, ${alpha})` : `rgba(139, 92, 246, ${alpha})`),
+        vertex: (alpha, i) => (i % 2 === 0 ? `rgba(249, 168, 212, ${Math.min(1, alpha * 1.8)})` : `rgba(196, 181, 253, ${Math.min(1, alpha * 1.8)})`),
+      },
+      ender: {
+        bg: '#050209',
+        grid: 'rgba(168, 85, 247, 0.12)',
+        gridHorizon: 'rgba(6, 182, 212, 0.22)',
+        star: (alpha) => `rgba(168, 85, 247, ${alpha})`,
+        edge: (alpha, i) => (i % 2 === 0 ? `rgba(168, 85, 247, ${alpha})` : `rgba(6, 182, 212, ${alpha})`),
+        vertex: (alpha, i) => (i % 2 === 0 ? `rgba(216, 180, 254, ${Math.min(1, alpha * 1.8)})` : `rgba(103, 232, 249, ${Math.min(1, alpha * 1.8)})`),
+      },
     }
 
     const currentPalette = PALETTES[colorMode] || PALETTES.monochrome
 
-    // 1. Cube
+    // 1. Cube (Primary Shape - Squares flying into camera)
     const cubeVertices = [
       [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
       [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1],
@@ -118,13 +143,14 @@ export default function Monochrome3DBackground({
       [1, 2], [2, 3], [3, 1],
     ]
 
-    const numShapes = 28
+    const numShapes = 32
     const shapes = []
     for (let i = 0; i < numShapes; i++) {
-      const type = i % 4
+      // Prioritize cubes (squares flying into camera)
+      const type = i % 2 === 0 ? 0 : (i % 4)
       let vertices = cubeVertices
       let edges = cubeEdges
-      let baseSize = 34
+      let baseSize = 36
 
       if (type === 1) {
         vertices = octaVertices
@@ -154,13 +180,13 @@ export default function Monochrome3DBackground({
         speedX: (Math.random() - 0.5) * 0.018,
         speedY: (Math.random() - 0.5) * 0.018,
         speedZ: (Math.random() - 0.5) * 0.016,
-        vz: Math.random() * 0.9 + 0.55,
+        vz: Math.random() * 0.9 + 0.65, // Forward velocity towards camera
       })
     }
 
     // Floating 3D Star dust particles
     const stars = []
-    const numStars = 70
+    const numStars = 80
     for (let i = 0; i < numStars; i++) {
       stars.push({
         x: (Math.random() - 0.5) * 1700,
@@ -221,7 +247,7 @@ export default function Monochrome3DBackground({
         ctx.stroke()
       }
 
-      // Horizontal ground rungs
+      // Horizontal ground rungs moving forward towards camera
       for (let z = 35; z < 800; z += 40) {
         const effectiveZ = z - gridOffset
         if (effectiveZ > 20) {
@@ -240,7 +266,6 @@ export default function Monochrome3DBackground({
       // 2. Render 3D Stardust (fades in distant, fades out near camera)
       for (let s of stars) {
         s.z -= s.vz * 60 * dt
-        // Smooth loop without popping: respawn when past the camera
         if (s.z <= -80) {
           s.z = 1650
           s.x = (Math.random() - 0.5) * 1700
@@ -253,7 +278,6 @@ export default function Monochrome3DBackground({
           const py = cy + (s.y - mouseY) * scale
 
           if (px >= 0 && px <= width && py >= 0 && py <= height) {
-            // Smooth fade in from distance & fade out near camera
             let starAlpha = 0.5
             if (s.z > 1200) {
               starAlpha = Math.max(0, (1650 - s.z) / 450) * 0.5
@@ -268,15 +292,14 @@ export default function Monochrome3DBackground({
         }
       }
 
-      // 3. Render 3D Geometric Objects with Smooth Fly-Through & Outward Drift
+      // 3. Render 3D Geometric Polyhedra with Smooth Fly-Through & Outward Drift
       for (let c of shapes) {
         c.rx += c.speedX * 60 * dt
         c.ry += c.speedY * 60 * dt
         c.rz += c.speedZ * 60 * dt
         c.z -= c.vz * 60 * dt
 
-        // Natural outward peripheral drift: as shapes approach the camera, they part smoothly
-        // around the user's view rather than hitting the camera dead center
+        // Natural outward peripheral drift: as shapes approach camera, they part smoothly around view
         if (c.z < 700) {
           const proximity = Math.max(0, 1 - c.z / 700)
           const dirX = c.x >= 0 ? 1 : -1
@@ -285,23 +308,18 @@ export default function Monochrome3DBackground({
           c.y += dirY * proximity * 45 * dt
         }
 
-        // Continuous smooth fly-through:
-        // Do NOT pop at z=80! Let shape fly past camera until z <= -140, then respawn smoothly in the deep distance
+        // Smooth fly-past camera before respawning in distance
         if (c.z <= -140) {
           c.z = 1750
           c.x = (Math.random() - 0.5) * 1650
           c.y = (Math.random() - 0.5) * 1050
         }
 
-        // Calculate smooth opacity:
-        // - Distant spawn (1750 -> 1250): smooth fade-in from 0 -> 0.75
-        // - Mid-range (1250 -> 240): full crisp opacity 0.75
-        // - Flying past camera (240 -> -140): smooth fade-out from 0.75 -> 0 without sudden pop
-        let depthAlpha = 0.75
+        let depthAlpha = 0.8
         if (c.z > 1250) {
-          depthAlpha = Math.max(0, (1750 - c.z) / 500) * 0.75
+          depthAlpha = Math.max(0, (1750 - c.z) / 500) * 0.8
         } else if (c.z < 240) {
-          depthAlpha = Math.max(0, (c.z + 140) / 380) * 0.75
+          depthAlpha = Math.max(0, (c.z + 140) / 380) * 0.8
         }
 
         if (depthAlpha <= 0.015) continue
@@ -348,7 +366,7 @@ export default function Monochrome3DBackground({
 
         ctx.lineWidth = Math.max(1.1, Math.min(3.5, 2.6 * (fov / Math.max(80, c.z))))
 
-        // Draw edges
+        // Draw wireframe edges
         for (let edgeIdx = 0; edgeIdx < c.edges.length; edgeIdx++) {
           const edge = c.edges[edgeIdx]
           const p1 = projected[edge[0]]
@@ -385,16 +403,16 @@ export default function Monochrome3DBackground({
       window.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [paused, colorMode])
+  }, [paused, colorMode, sceneType])
 
   return (
     <canvas
       ref={canvasRef}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
-        width: '100%',
-        height: '100%',
+        width: '100vw',
+        height: '100vh',
         zIndex: 0,
         pointerEvents: 'none',
       }}

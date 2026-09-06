@@ -10,8 +10,10 @@ function getDefaultGameDir() {
   return path.join(process.env.APPDATA || process.env.HOME || '', '.minecraft')
 }
 
-function getVersionContentDir(rootDir, versionId, contentType) {
-  const baseDir = versionId ? path.join(rootDir, 'versions', versionId) : rootDir
+function getVersionContentDir(rootDir, versionId, contentType, isolateVersionFolders = true) {
+  const baseDir = (versionId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', versionId)
+    : rootDir
   let sub = 'mods'
   if (contentType === 'resourcepack' || contentType === 'resourcepacks') sub = 'resourcepacks'
   else if (contentType === 'shader' || contentType === 'shaderpacks') sub = 'shaderpacks'
@@ -23,13 +25,15 @@ function getVersionContentDir(rootDir, versionId, contentType) {
   return targetDir
 }
 
-function getManifestPath(rootDir, versionId) {
-  const baseDir = versionId ? path.join(rootDir, 'versions', versionId) : rootDir
+function getManifestPath(rootDir, versionId, isolateVersionFolders = true) {
+  const baseDir = (versionId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', versionId)
+    : rootDir
   return path.join(baseDir, '.vibelauncher_content.json')
 }
 
-function readContentManifest(rootDir, versionId) {
-  const p = getManifestPath(rootDir, versionId)
+function readContentManifest(rootDir, versionId, isolateVersionFolders = true) {
+  const p = getManifestPath(rootDir, versionId, isolateVersionFolders)
   if (fs.existsSync(p)) {
     try {
       return JSON.parse(fs.readFileSync(p, 'utf8'))
@@ -38,8 +42,8 @@ function readContentManifest(rootDir, versionId) {
   return { installed: {} }
 }
 
-function writeContentManifest(rootDir, versionId, data) {
-  const p = getManifestPath(rootDir, versionId)
+function writeContentManifest(rootDir, versionId, data, isolateVersionFolders = true) {
+  const p = getManifestPath(rootDir, versionId, isolateVersionFolders)
   try {
     const dir = path.dirname(p)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -161,6 +165,7 @@ async function getModrinthProjectVersions({ slugOrId, mcVersion, loader, type = 
         gameVersions: v.game_versions,
         loaders: v.loaders,
         datePublished: v.date_published,
+        dependencies: v.dependencies || [],
         file: primaryFile
           ? {
               url: primaryFile.url,
@@ -183,15 +188,29 @@ async function getModrinthProjectVersions({ slugOrId, mcVersion, loader, type = 
  * Installs (downloads) a mod/shader/resourcepack file into the version folder
  */
 async function installModFile(
-  { fileUrl, fileName, versionId, type = 'mod', projectId, projectSlug, projectTitle, gameDir },
+  {
+    fileUrl,
+    fileName,
+    versionId,
+    type = 'mod',
+    projectId,
+    projectSlug,
+    projectTitle,
+    gameDir,
+    isolateVersionFolders = true,
+    dependencies,
+    mcVersion,
+    loader,
+  },
   onProgress
 ) {
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
-  const targetDir = getVersionContentDir(rootDir, versionId, type)
-  const targetPath = path.join(targetDir, fileName)
+  const targetDir = getVersionContentDir(rootDir, versionId, type, isolateVersionFolders)
+  const safeFileName = path.basename(fileName)
+  const targetPath = path.join(targetDir, safeFileName)
 
   try {
-    if (onProgress) onProgress({ task: `Загрузка ${fileName}...`, current: 0, total: 100 })
+    if (onProgress) onProgress({ task: `Загрузка ${safeFileName}...`, current: 0, total: 100 })
 
     const res = await axios.get(fileUrl, {
       responseType: 'arraybuffer',
@@ -199,7 +218,7 @@ async function installModFile(
       onDownloadProgress: (evt) => {
         if (onProgress && evt.total) {
           const pct = Math.round((evt.loaded / evt.total) * 100)
-          onProgress({ task: `Загрузка ${fileName}`, current: pct, total: 100 })
+          onProgress({ task: `Загрузка ${safeFileName}`, current: pct, total: 100 })
         }
       },
     })
@@ -207,21 +226,102 @@ async function installModFile(
     fs.writeFileSync(targetPath, Buffer.from(res.data))
 
     // Record installation in .vibelauncher_content.json manifest
-    const manifest = readContentManifest(rootDir, versionId)
-    const key = projectId || projectSlug || fileName
+    const manifest = readContentManifest(rootDir, versionId, isolateVersionFolders)
+    const key = projectId || projectSlug || safeFileName
     manifest.installed[key] = {
       id: projectId || '',
       slug: projectSlug || '',
-      title: projectTitle || fileName,
-      fileName: fileName,
+      title: projectTitle || safeFileName,
+      fileName: safeFileName,
       filePath: targetPath,
       type: type,
       installedAt: Date.now(),
     }
-    writeContentManifest(rootDir, versionId, manifest)
+    writeContentManifest(rootDir, versionId, manifest, isolateVersionFolders)
 
-    if (onProgress) onProgress({ task: `Установлено: ${fileName}`, current: 100, total: 100 })
-    return { ok: true, filePath: targetPath, fileName, projectId, projectSlug }
+    // Auto-download required dependencies from Modrinth (if type === 'mod')
+    if (type === 'mod' && Array.isArray(dependencies) && dependencies.length > 0) {
+      for (const dep of dependencies) {
+        if (dep.dependency_type === 'required' && (dep.version_id || dep.project_id)) {
+          try {
+            const currentManifest = readContentManifest(rootDir, versionId, isolateVersionFolders)
+            const depKey = dep.project_id || dep.version_id
+            if (currentManifest.installed && currentManifest.installed[depKey]) {
+              continue
+            }
+
+            let depFileUrl = null
+            let depFileName = null
+            let depProjectId = dep.project_id
+
+            if (dep.version_id) {
+              const vRes = await axios.get(`https://api.modrinth.com/v2/version/${dep.version_id}`, {
+                headers: { 'User-Agent': 'VibeLauncher/1.0' },
+                timeout: 15000,
+              })
+              const pFile = vRes.data?.files?.find((f) => f.primary) || vRes.data?.files?.[0]
+              if (pFile) {
+                depFileUrl = pFile.url
+                depFileName = pFile.filename
+                depProjectId = vRes.data.project_id
+              }
+            } else if (dep.project_id) {
+              const pParams = {}
+              if (loader && loader !== 'all' && loader !== 'vanilla') {
+                pParams.loaders = JSON.stringify([loader.toLowerCase()])
+              }
+              if (mcVersion) {
+                pParams.game_versions = JSON.stringify([mcVersion])
+              }
+              const pRes = await axios.get(`https://api.modrinth.com/v2/project/${dep.project_id}/version`, {
+                params: pParams,
+                headers: { 'User-Agent': 'VibeLauncher/1.0' },
+                timeout: 15000,
+              })
+              const firstVer = pRes.data?.[0]
+              const pFile = firstVer?.files?.find((f) => f.primary) || firstVer?.files?.[0]
+              if (pFile) {
+                depFileUrl = pFile.url
+                depFileName = pFile.filename
+              }
+            }
+
+            if (depFileUrl && depFileName) {
+              const safeDepFileName = path.basename(depFileName)
+              const depTargetPath = path.join(targetDir, safeDepFileName)
+              if (!fs.existsSync(depTargetPath)) {
+                if (onProgress) {
+                  onProgress({ task: `Загрузка зависимости: ${safeDepFileName}...`, current: 50, total: 100 })
+                }
+                const depRes = await axios.get(depFileUrl, {
+                  responseType: 'arraybuffer',
+                  timeout: 45000,
+                })
+                fs.writeFileSync(depTargetPath, Buffer.from(depRes.data))
+
+                const updatedManifest = readContentManifest(rootDir, versionId, isolateVersionFolders)
+                updatedManifest.installed[depProjectId || safeDepFileName] = {
+                  id: depProjectId || '',
+                  slug: '',
+                  title: safeDepFileName,
+                  fileName: safeDepFileName,
+                  filePath: depTargetPath,
+                  type: 'mod',
+                  isDependency: true,
+                  installedAt: Date.now(),
+                }
+                writeContentManifest(rootDir, versionId, updatedManifest, isolateVersionFolders)
+              }
+            }
+          } catch (depErr) {
+            console.warn('[Mods] Could not auto-install dependency:', depErr.message)
+          }
+        }
+      }
+    }
+
+    if (onProgress) onProgress({ task: `Установлено: ${safeFileName}`, current: 100, total: 100 })
+    return { ok: true, filePath: targetPath, fileName: safeFileName, projectId, projectSlug }
   } catch (err) {
     console.error('[Mod Install Error]:', err.message)
     return { ok: false, error: err.message }
@@ -231,9 +331,11 @@ async function installModFile(
 /**
  * Scans installed mods, shaders, and resourcepacks in the version directory
  */
-function getInstalledContent({ versionId, gameDir }) {
+function getInstalledContent({ versionId, gameDir, isolateVersionFolders = true }) {
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
-  const baseDir = versionId ? path.join(rootDir, 'versions', versionId) : rootDir
+  const baseDir = (versionId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', versionId)
+    : rootDir
 
   const categories = [
     { key: 'mods', type: 'mod' },
@@ -242,7 +344,7 @@ function getInstalledContent({ versionId, gameDir }) {
   ]
 
   const items = []
-  const manifest = readContentManifest(rootDir, versionId)
+  const manifest = readContentManifest(rootDir, versionId, isolateVersionFolders)
   const installedProjectIds = new Set()
   const installedSlugs = new Set()
   const installedFileNames = new Set()
@@ -321,7 +423,7 @@ function toggleModFile(filePath) {
 /**
  * Deletes a mod/shader/resourcepack file and updates manifest
  */
-function deleteModFile(filePath, versionId, gameDir) {
+function deleteModFile(filePath, versionId, gameDir, isolateVersionFolders = true) {
   try {
     if (fs.existsSync(filePath)) {
       const fileName = path.basename(filePath)
@@ -330,13 +432,13 @@ function deleteModFile(filePath, versionId, gameDir) {
       // Clean from manifest if versionId is provided
       if (versionId) {
         const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
-        const manifest = readContentManifest(rootDir, versionId)
+        const manifest = readContentManifest(rootDir, versionId, isolateVersionFolders)
         for (const [key, val] of Object.entries(manifest.installed || {})) {
           if (val.fileName === fileName || val.filePath === filePath) {
             delete manifest.installed[key]
           }
         }
-        writeContentManifest(rootDir, versionId, manifest)
+        writeContentManifest(rootDir, versionId, manifest, isolateVersionFolders)
       }
 
       return { ok: true }
@@ -350,9 +452,9 @@ function deleteModFile(filePath, versionId, gameDir) {
 /**
  * Opens the mods/shaderpacks/resourcepacks folder in Explorer
  */
-function openContentFolder({ versionId, type = 'mods', gameDir }) {
+function openContentFolder({ versionId, type = 'mods', gameDir, isolateVersionFolders = true }) {
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
-  const dir = getVersionContentDir(rootDir, versionId, type)
+  const dir = getVersionContentDir(rootDir, versionId, type, isolateVersionFolders)
   shell.openPath(dir)
   return true
 }

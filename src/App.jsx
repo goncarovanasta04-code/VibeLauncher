@@ -122,12 +122,13 @@ export default function App() {
   // Load saved profile & local versions on start
   useEffect(() => {
     const load = async () => {
-      // Apply saved theme (default to vibe-classic animated video)
+      // Apply saved theme (default to minimal-3d flying cubes)
       const savedTheme = await window.vibe?.storeGet('settings.theme')
       if (savedTheme && savedTheme !== 'glacier-ice') {
         applyTheme(savedTheme)
       } else {
-        applyTheme('vibe-classic')
+        applyTheme('minimal-3d')
+        window.vibe?.storeSet?.('settings.theme', 'minimal-3d')
       }
 
       await checkSettings()
@@ -250,6 +251,7 @@ export default function App() {
         <Monochrome3DBackground
           paused={isGameRunning || !enableAnimations}
           colorMode={currentTheme?.colorMode || 'monochrome'}
+          sceneType={currentTheme?.sceneType || 'minimal-void'}
         />
       )}
 

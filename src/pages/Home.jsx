@@ -20,9 +20,11 @@ import {
   Trash2,
   Play,
   RotateCw,
+  Sparkles,
 } from 'lucide-react'
 import MiniSkin3D from '../components/MiniSkin3D'
 import LaunchErrorModal from '../components/LaunchErrorModal'
+import packageInfo from '../../package.json'
 import styles from './Home.module.css'
 
 function isVersionInstalled(v, locals) {
@@ -98,6 +100,17 @@ export default function Home({
   const isInstalled = useMemo(() => {
     return isVersionInstalled(selected, localVersions)
   }, [selected, localVersions])
+
+  const userAvatarSrc = useMemo(() => {
+    if (profile?.avatarUrl) return profile.avatarUrl
+    if (profile?.skinUrl && profile.skinUrl.includes('minotar.net/skin/')) {
+      return profile.skinUrl.replace('/skin/', '/avatar/') + '/32'
+    }
+    if (profile?.authType === 'elyby' && profile?.username) {
+      return `https://skinsystem.ely.by/avatars/${encodeURIComponent(profile.username)}`
+    }
+    return `https://mc-heads.net/avatar/${encodeURIComponent(profile?.username || 'Steve')}/32`
+  }, [profile])
 
   useEffect(() => {
     if (selectedVersion) {
@@ -407,14 +420,10 @@ export default function Home({
                 type="button"
                 className={styles.avatarMainBtn}
                 onClick={() => setShowProfileDropdown((v) => !v)}
-                title="Ваш 3D персонаж"
+                title="Меню профиля"
               >
                 <img
-                  src={
-                    profile.skinUrl && profile.skinUrl.includes('minotar.net/skin/')
-                      ? profile.skinUrl.replace('/skin/', '/avatar/') + '/32'
-                      : `https://minotar.net/avatar/${encodeURIComponent(profile.username || 'Steve')}/32`
-                  }
+                  src={userAvatarSrc}
                   alt={profile.username}
                   className={styles.userAvatarImg}
                   onError={(e) => {
@@ -953,7 +962,7 @@ export default function Home({
             <div className={styles.infoBody}>
               <div className={styles.infoRow}>
                 <span>Версия лаунчера:</span>
-                <b>1.1.0</b>
+                <b>v{packageInfo.version}</b>
               </div>
               <div className={styles.infoRow}>
                 <span>Режим скинов:</span>

@@ -178,16 +178,21 @@ export default function ThemesModal({ onClose }) {
               >
                 {/* 1. VISUAL COVER BANNER (Always 130px, never shrinks!) */}
                 <div className={styles.cardPreviewBanner}>
-                  {/* Real-time mini 3D canvas for 3D themes */}
-                  {is3DTheme ? (
-                    <div className={styles.canvasWrapper}>
-                      <Mini3DCanvas colorMode={theme.colorMode || 'monochrome'} width={440} height={130} />
-                    </div>
-                  ) : theme.bgImage ? (
+                  {/* Distinct Visual Cover Art Image (including 3D themes) */}
+                  {theme.bgImage ? (
                     <div
                       className={styles.bannerImageLayer}
                       style={{ backgroundImage: `url(${theme.bgImage})` }}
                     />
+                  ) : is3DTheme ? (
+                    <div className={styles.canvasWrapper}>
+                      <Mini3DCanvas
+                        sceneType={theme.sceneType || 'minimal-void'}
+                        colorMode={theme.colorMode || 'monochrome'}
+                        width={440}
+                        height={130}
+                      />
+                    </div>
                   ) : (
                     <div
                       className={styles.bannerSolidLayer}
@@ -326,7 +331,12 @@ export default function ThemesModal({ onClose }) {
           <div className={styles.floatingPreviewMedia}>
             {hoveredTheme.is3D || hoveredTheme.is3DMonochrome ? (
               <div className={styles.floatingCanvasWrap}>
-                <Mini3DCanvas colorMode={hoveredTheme.colorMode || 'monochrome'} width={300} height={160} />
+                <Mini3DCanvas
+                  sceneType={hoveredTheme.sceneType || 'minimal-void'}
+                  colorMode={hoveredTheme.colorMode || 'monochrome'}
+                  width={300}
+                  height={160}
+                />
                 <div className={styles.floatingBadge3D}>
                   <Box size={12} />
                   <span>3D Realtime</span>

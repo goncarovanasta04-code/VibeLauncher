@@ -293,17 +293,46 @@ async function ensureAuthlibInjector(rootDir) {
     return injectorPath
   }
 
+  // 1. Check if bundled in launcher assets directory
   try {
-    console.log('[Launcher] Downloading authlib-injector for Ely.by...')
-    const url = 'https://authlib-injector.yggdrasil.gservice.top/artifact/latest.jar'
-    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
-    fs.writeFileSync(injectorPath, Buffer.from(res.data))
-    console.log('[Launcher] authlib-injector downloaded successfully')
-    return injectorPath
-  } catch (e) {
-    console.warn('[Launcher] Failed to download authlib-injector:', e.message)
-    return null
+    const bundledPaths = [
+      path.join(__dirname, '..', 'assets', 'authlib-injector.jar'),
+      app && app.isPackaged ? path.join(process.resourcesPath, 'assets', 'authlib-injector.jar') : null,
+      path.join(process.cwd(), 'assets', 'authlib-injector.jar'),
+    ].filter(Boolean)
+
+    for (const bPath of bundledPaths) {
+      if (fs.existsSync(bPath) && fs.statSync(bPath).size > 100000) {
+        console.log('[Launcher] Copying bundled authlib-injector from:', bPath)
+        fs.copyFileSync(bPath, injectorPath)
+        return injectorPath
+      }
+    }
+  } catch (copyErr) {
+    console.warn('[Launcher] Note copying bundled authlib-injector:', copyErr.message)
   }
+
+  // 2. Download from official GitHub Releases
+  const releaseUrls = [
+    'https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.8/authlib-injector-1.2.8.jar',
+    'https://bmclapi2.bangbang93.com/mirrors/authlib-injector/artifact/latest.jar',
+  ]
+
+  for (const url of releaseUrls) {
+    try {
+      console.log('[Launcher] Downloading authlib-injector from:', url)
+      const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
+      if (res.data && res.data.length > 50000) {
+        fs.writeFileSync(injectorPath, Buffer.from(res.data))
+        console.log('[Launcher] authlib-injector downloaded successfully')
+        return injectorPath
+      }
+    } catch (e) {
+      console.warn(`[Launcher] Download failed from ${url}:`, e.message)
+    }
+  }
+
+  return null
 }
 
 /**
@@ -440,7 +469,7 @@ async function launchMinecraft(opts, onLog, onProgress) {
     try {
       const injectorJar = await ensureAuthlibInjector(rootDir)
       if (injectorJar) {
-        customJvmArgs.push(`-javaagent:${injectorJar}=ely.by`)
+        customJvmArgs.push(`-javaagent:${injectorJar}=https://authserver.ely.by/api/authlib-injector`)
         customJvmArgs.push('-Dauthlibinjector.side=client')
       }
     } catch (e) {
@@ -462,8 +491,6 @@ async function launchMinecraft(opts, onLog, onProgress) {
     }
   }
 
-
-
   // Server auto-connect if configured (sanitized to prevent CLI injection)
   if (opts.serverAutoConnect && opts.serverAutoConnect.trim()) {
     const parts = opts.serverAutoConnect.trim().split(':')
@@ -474,19 +501,16 @@ async function launchMinecraft(opts, onLog, onProgress) {
     }
   }
 
-  // For offline/custom accounts: ensure Minecraft's SocialInteractionsService automatically uses OfflineSocialInteractions,
-  // completely unlocking Multiplayer and Server list with zero Microsoft restriction tooltips
-  if (authType !== 'microsoft') {
+  // For clean offline accounts: ensure Minecraft's SocialInteractionsService automatically uses OfflineSocialInteractions,
+  // completely unlocking Multiplayer and Server list with zero Microsoft restriction tooltips.
+  // Note: authlib-injector handles Ely.by automatically; do NOT override Mojang hosts for Ely.by.
+  // Note: never inject dead local ports (e.g. 127.0.0.1:25560) which cause ConnectException hangs.
+  if (authType === 'offline') {
     customJvmArgs.push(
       '-Dminecraft.api.auth.host=https://authserver.mojang.com',
       '-Dminecraft.api.account.host=https://api.mojang.com',
       '-Dminecraft.api.session.host=https://sessionserver.mojang.com'
     )
-    // Only inject local mock services host for legacy Minecraft <= 1.19.4. Modern 1.20+ Netty fails on local mock.
-    const isModern = mcVersion.includes('1.20') || mcVersion.includes('1.21') || mcVersion.includes('1.22')
-    if (!isModern) {
-      customJvmArgs.push('-Dminecraft.api.services.host=http://127.0.0.1:25560')
-    }
   }
 
   function extractBaseMinecraftVersion(versionStr, data) {
@@ -760,6 +784,8 @@ async function launchMinecraft(opts, onLog, onProgress) {
       fs.mkdirSync(path.join(isolatedGameDir, 'mods'), { recursive: true })
       fs.mkdirSync(path.join(isolatedGameDir, 'shaderpacks'), { recursive: true })
       fs.mkdirSync(path.join(isolatedGameDir, 'resourcepacks'), { recursive: true })
+      const { ensureFuflandiyaServer } = require('./servers')
+      await ensureFuflandiyaServer(isolatedGameDir)
     } catch (e) {}
   }
 
