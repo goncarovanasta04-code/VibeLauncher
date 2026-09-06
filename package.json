@@ -1,0 +1,108 @@
+{
+  "name": "vibelauncher",
+  "version": "1.3.9",
+  "description": "VibeLauncher - Minecraft Launcher with Ely.by auth",
+  "author": "VibeLauncher",
+  "main": "electron/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goncarovanasta04-code/VibeLauncher.git"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"vite --host\" \"wait-on http://localhost:5173 && electron .\" --names vite,electron",
+    "dev:vite": "vite --host",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build": "vite build",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "dist:portable": "npm run build && electron-builder --win portable",
+    "release": "node scripts/publish-release.js"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.2",
+    "rcedit": "^5.0.2",
+    "sharp": "^0.35.4",
+    "vite": "^6.0.7",
+    "wait-on": "^8.0.1"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "discord-rpc": "^4.0.1",
+    "electron-store": "^7.0.3",
+    "lucide-react": "^0.469.0",
+    "minecraft-launcher-core": "^3.18.2",
+    "msmc": "^5.0.5",
+    "prismarine-nbt": "^2.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1",
+    "skinview3d": "^3.4.2"
+  },
+  "build": {
+    "appId": "com.vibelauncher.app",
+    "productName": "VibeLauncher",
+    "icon": "assets/icon.ico",
+    "forceCodeSigning": false,
+    "compression": "maximum",
+    "publish": {
+      "provider": "github",
+      "owner": "goncarovanasta04-code",
+      "repo": "VibeLauncher"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "afterPack": "./scripts/afterPack.js",
+    "win": {
+      "publisherName": "VibeLauncher",
+      "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "VibeLauncher",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "artifactName": "VibeLauncher-Setup-v${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false,
+      "warningsAsErrors": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VibeLauncher",
+      "differentialPackage": false
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "!dist/*.exe",
+      "!dist/*.blockmap",
+      "!dist/win-unpacked/**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powertest,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin"
+    ],
+    "extraResources": [
+      "assets/**/*"
+    ]
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true
+  }
+}
