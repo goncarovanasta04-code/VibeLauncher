@@ -2,7 +2,7 @@
                VIBELAUNCHER — СВОДКА ПРОЕКТА ДЛЯ НОВОГО ЧАТА
 ================================================================================
 Дата формирования: Сентябрь 2026
-Текущая версия проекта: v1.4.0
+Текущая версия проекта: v1.4.1
 Репозиторий: https://github.com/goncarovanasta04-code/VibeLauncher
 Стек технологий: Electron 33, Node.js, React 18, Vite 6, NSIS (electron-builder),
                  minecraft-launcher-core, Adoptium Temurin OpenJDK (8, 17, 21),

@@ -534,9 +534,11 @@
 .doneBtn {
   padding: 7px 20px;
   border-radius: 6px;
-  background: #ffffff;
-  border: 1px solid #ffffff;
-  color: #0b0c0e;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.85) 0%, rgba(2, 132, 199, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  color: #ffffff;
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
@@ -544,8 +546,11 @@
 }
 
 .doneBtn:hover {
-  background: #e2e8f0;
-  border-color: #e2e8f0;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(0, 122, 255, 1) 100%);
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* ==========================================================================

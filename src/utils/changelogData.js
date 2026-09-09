@@ -12,7 +12,7 @@ import {
 
 export const CHANGELOG_DATA = [
   {
-    version: '1.4.0',
+    version: '1.4.1',
     highlight: true,
     i18n: {
       ru: {

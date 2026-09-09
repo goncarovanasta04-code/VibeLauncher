@@ -315,22 +315,24 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 22px;
+  padding: 9px 24px;
   border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  color: #0b0c0e;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.85) 0%, rgba(2, 132, 199, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .updateBtn:hover:not(:disabled) {
-  background: #f1f5f9;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(0, 122, 255, 1) 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  border-color: rgba(56, 189, 248, 0.6);
 }
 
 .updateBtn:disabled {
@@ -344,20 +346,21 @@
   gap: 8px;
   padding: 9px 24px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: 1px solid rgba(52, 211, 153, 0.5);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.85) 0%, rgba(2, 132, 199, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.4);
   color: #ffffff;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.45);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .installBtn:hover {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(0, 122, 255, 1) 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(52, 211, 153, 0.6);
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.6);
 }
 
 .spin {
