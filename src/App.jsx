@@ -176,19 +176,14 @@ export default function App() {
   const loadAccountsAndProfile = async () => {
     // 1. Profile
     let saved = await window.vibe?.storeGet('profile')
-    if (!saved || !saved.username || saved.username === 'ZIKYT') {
+    if (!saved || !saved.username) {
       try {
         const ls = localStorage.getItem('vibelauncher_profile')
         if (ls) saved = JSON.parse(ls)
       } catch (e) {}
     }
-    if (saved && saved.username && saved.username !== 'ZIKYT') {
+    if (saved && saved.username) {
       setProfile(saved)
-    } else {
-      setProfile(null)
-      if (saved?.username === 'ZIKYT') {
-        window.vibe?.storeDelete('profile')
-      }
     }
 
     // 2. Accounts list
@@ -199,11 +194,22 @@ export default function App() {
         if (ls) savedAccs = JSON.parse(ls)
       } catch (e) {}
     }
-    if (Array.isArray(savedAccs)) {
-      const valid = savedAccs.filter((a) => a && a.username && a.username !== 'ZIKYT')
+    if (Array.isArray(savedAccs) && savedAccs.length > 0) {
+      const valid = savedAccs.filter((a) => a && a.username)
       setAccounts(valid)
-    } else if (saved && saved.username && saved.username !== 'ZIKYT') {
+      if (!saved && valid.length > 0) {
+        setProfile(valid[0])
+        window.vibe?.storeSet('profile', valid[0])
+        try {
+          localStorage.setItem('vibelauncher_profile', JSON.stringify(valid[0]))
+        } catch (e) {}
+      }
+    } else if (saved && saved.username) {
       setAccounts([saved])
+      window.vibe?.storeSet('accounts', [saved])
+      try {
+        localStorage.setItem('vibelauncher_accounts', JSON.stringify([saved]))
+      } catch (e) {}
     }
   }
 

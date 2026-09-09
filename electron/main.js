@@ -362,11 +362,14 @@ ipcMain.handle('game:launch', async (_, opts) => {
     hasHidden = true
     hideTimeout = setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed() && isGameProcessRunning) {
-        mainWindow.webContents.send('game:started')
-        // Use minimize instead of hide to maintain proper Windows DWM lifecycle
-        mainWindow.minimize()
+        try {
+          mainWindow.webContents.send('game:started')
+          mainWindow.hide()
+        } catch (e) {
+          console.warn('[Main] Window hide error:', e.message)
+        }
       }
-    }, 1200)
+    }, 600)
   }
 
   // Set Discord RPC status to Playing
@@ -399,23 +402,20 @@ ipcMain.handle('game:launch', async (_, opts) => {
       },
       (data) => {
         mainWindow?.webContents.send('game:log', data)
-        // Minimize launcher only when the Minecraft game window actually initializes
+        // Hide launcher as soon as game logs start coming in
         if (!hasHidden && isGameProcessRunning && mainWindow && !mainWindow.isDestroyed()) {
-          const text = typeof data?.text === 'string' ? data.text : ''
-          const isGameWindowReady =
-            text.includes('Backend library: LWJGL') ||
-            text.includes('LWJGL Version') ||
-            text.includes('OpenAL initialized') ||
-            text.includes('Sound engine started') ||
-            text.includes('Reloading ResourceManager') ||
-            /Created: \d+x\d+/.test(text)
-
-          if (isGameWindowReady) {
+          const text = typeof data?.text === 'string' ? data.text : (typeof data === 'string' ? data : '')
+          if (text && text.trim().length > 0) {
             hideLauncherWhenGameReady()
           }
         }
       },
-      (progress) => mainWindow?.webContents.send('game:progress', progress)
+      (progress) => {
+        mainWindow?.webContents.send('game:progress', progress)
+        if (progress?.type === 'game_started') {
+          hideLauncherWhenGameReady()
+        }
+      }
     )
 
     return result

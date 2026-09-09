@@ -1186,11 +1186,13 @@ function analyzeCrashLogs(logs, exitCode) {
     })
 
     launcher.on('data', (e) => {
+      clearTimeout(timeoutTimer)
       addLog(`[OUT] ${e}`)
       if (onLog) onLog({ type: 'out', text: e })
     })
 
     launcher.on('close', (code) => {
+      clearTimeout(timeoutTimer)
       if (code === 0) {
         safeResolve({ ok: true, code: 0 })
       } else {
@@ -1205,6 +1207,7 @@ function analyzeCrashLogs(logs, exitCode) {
     })
 
     launcher.on('error', (err) => {
+      clearTimeout(timeoutTimer)
       const errorReason = analyzeCrashLogs([...recentLogs, err?.message || String(err)])
       safeResolve({
         ok: false,
@@ -1214,18 +1217,18 @@ function analyzeCrashLogs(logs, exitCode) {
       })
     })
 
-    // Timeout safety guard (120 seconds max for asset preparation & launch)
+    // Timeout safety guard only for downloading/preparing files BEFORE process start (180s)
     const timeoutTimer = setTimeout(() => {
       if (!hasResolved) {
         const errorReason = analyzeCrashLogs(recentLogs, -1)
         safeResolve({
           ok: false,
           code: -1,
-          error: 'Таймаут инициализации игры (120с). ' + errorReason,
+          error: 'Таймаут загрузки ресурсов игры (180с). ' + errorReason,
           logs: recentLogs.slice(-60).join('\n'),
         })
       }
-    }, 120000)
+    }, 180000)
 
     try {
       launcher
@@ -1242,6 +1245,11 @@ function analyzeCrashLogs(logs, exitCode) {
                 recentLogs.slice(-60).join('\n') ||
                 'Minecraft process failed to initialize (MCLC returned null).',
             })
+          } else {
+            // Process spawned and game is running! Clear timeout timer so it NEVER fires while playing!
+            clearTimeout(timeoutTimer)
+            if (onProgress) onProgress({ type: 'game_started' })
+            if (onLog) onLog({ type: 'out', text: 'Minecraft process started successfully.' })
           }
         })
         .catch((err) => {
