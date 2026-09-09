@@ -23,6 +23,33 @@ export default function Mini3DCanvas({
     const ctx = canvas.getContext('2d')
     let animId
     let isMounted = true
+    let isPaused = document.hidden
+
+    const onVisibilityChange = () => {
+      isPaused = document.hidden
+      if (!isPaused && isMounted) {
+        lastTime = performance.now()
+        cancelAnimationFrame(animId)
+        animId = requestAnimationFrame(render)
+      }
+    }
+
+    const onWindowBlur = () => {
+      isPaused = true
+    }
+
+    const onWindowFocus = () => {
+      isPaused = false
+      if (isMounted) {
+        lastTime = performance.now()
+        cancelAnimationFrame(animId)
+        animId = requestAnimationFrame(render)
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('blur', onWindowBlur)
+    window.addEventListener('focus', onWindowFocus)
 
     const cx = width / 2
     const cy = height / 2
@@ -76,7 +103,7 @@ export default function Mini3DCanvas({
       z: Math.random() * 300 + 30,
       speed: Math.random() * 4 + 3,
       size: Math.random() * 1.6 + 0.8,
-      color: Math.random() > 0.4 ? '#38bdf8' : Math.random() > 0.5 ? '#a855f7' : '#ffffff',
+      color: Math.random() > 0.4 ? '#ffffff' : Math.random() > 0.5 ? '#cbd5e1' : '#94a3b8',
     }))
 
     // 3. Prismatic Crystals (Icosahedron)
@@ -119,7 +146,7 @@ export default function Mini3DCanvas({
 
     // --- Render Dispatcher ---
     const render = (now) => {
-      if (!isMounted) return
+      if (!isMounted || isPaused) return
       const dt = Math.min((now - lastTime) / 1000, 0.1)
       lastTime = now
       time += dt
@@ -426,6 +453,9 @@ export default function Mini3DCanvas({
 
     return () => {
       isMounted = false
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('blur', onWindowBlur)
+      window.removeEventListener('focus', onWindowFocus)
       cancelAnimationFrame(animId)
     }
   }, [sceneType, colorMode, width, height])

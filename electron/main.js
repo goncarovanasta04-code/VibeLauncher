@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const Store = require('electron-store')
@@ -18,6 +18,7 @@ const { loginElyByCredentials } = require('./auth/elyby')
 const { loginMicrosoft } = require('./auth/microsoft')
 const {
   searchModrinth,
+  getModrinthProjectDetails,
   getModrinthProjectVersions,
   installModFile,
   getInstalledContent,
@@ -91,7 +92,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
+      webSecurity: true,
     },
     icon: getAppIcon(),
     show: false,
@@ -172,6 +173,21 @@ ipcMain.on('window:maximize', () => {
 })
 ipcMain.on('window:close', () => mainWindow?.close())
 
+// ─── System / Display Resolution ──────────────────────────────────────────────
+ipcMain.handle('system:getScreenResolution', () => {
+  try {
+    const primary = screen.getPrimaryDisplay()
+    if (primary && primary.bounds) {
+      return {
+        width: primary.bounds.width,
+        height: primary.bounds.height,
+        scaleFactor: primary.scaleFactor || 1,
+      }
+    }
+  } catch (e) {}
+  return { width: 1920, height: 1080, scaleFactor: 1 }
+})
+
 // ─── electron-store IPC (Protected against prototype pollution) ─────────────────
 ipcMain.handle('store:get', (_, key) => {
   if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor')) return undefined
@@ -241,6 +257,10 @@ ipcMain.handle('mods:searchModrinth', async (_, params) => {
   return await searchModrinth(params || {})
 })
 
+ipcMain.handle('mods:getDetails', async (_, slugOrId) => {
+  return await getModrinthProjectDetails(slugOrId)
+})
+
 ipcMain.handle('mods:getVersions', async (_, params) => {
   return await getModrinthProjectVersions(params || {})
 })
@@ -280,8 +300,10 @@ ipcMain.handle('mods:getInstalled', async (_, { versionId, gameDir, isolateVersi
   })
 })
 
-ipcMain.handle('mods:toggle', async (_, filePath) => {
-  return toggleModFile(filePath)
+ipcMain.handle('mods:toggle', async (_, opts) => {
+  const filePath = typeof opts === 'string' ? opts : opts?.filePath
+  const settings = store.get('settings') || {}
+  return toggleModFile(filePath, settings.gameDir)
 })
 
 ipcMain.handle('mods:delete', async (_, opts) => {
@@ -334,19 +356,15 @@ ipcMain.handle('game:launch', async (_, opts) => {
   const serverAutoConnect = opts.serverAutoConnect || settings.serverAutoConnect || ''
   const potatoMode = opts.potatoMode !== undefined ? opts.potatoMode : Boolean(settings.potatoMode)
   let hasHidden = false
-  let fallbackTimer = null
 
   const hideLauncherWhenGameReady = () => {
-    if (hasHidden) return
+    if (hasHidden || !isGameProcessRunning) return
     hasHidden = true
-    if (fallbackTimer) {
-      clearTimeout(fallbackTimer)
-      fallbackTimer = null
-    }
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
+    hideTimeout = setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed() && isGameProcessRunning) {
         mainWindow.webContents.send('game:started')
-        mainWindow.hide()
+        // Use minimize instead of hide to maintain proper Windows DWM lifecycle
+        mainWindow.minimize()
       }
     }, 1200)
   }
@@ -358,63 +376,103 @@ ipcMain.handle('game:launch', async (_, opts) => {
     username: opts.username || 'Player',
   })
 
-  const result = await launchMinecraft(
-    {
-      ...opts,
-      gameDir: effectiveGameDir,
-      isolateVersionFolders,
-      ramMin,
-      ramMax,
-      javaMode,
-      javaPath,
-      fullscreen,
-      width,
-      height,
-      gcPreset,
-      serverAutoConnect,
-      potatoMode,
-    },
-    (data) => {
-      mainWindow?.webContents.send('game:log', data)
-      // Hide launcher only when the Minecraft game window actually initializes
-      if (!hasHidden && mainWindow && !mainWindow.isDestroyed()) {
-        const text = typeof data?.text === 'string' ? data.text : ''
-        const isGameWindowReady =
-          text.includes('Backend library: LWJGL') ||
-          text.includes('LWJGL Version') ||
-          text.includes('OpenAL initialized') ||
-          text.includes('Sound engine started') ||
-          text.includes('Reloading ResourceManager') ||
-          text.includes('Render thread/INFO') ||
-          text.includes('Setting user:') ||
-          /Created: \d+x\d+/.test(text)
+  let isGameProcessRunning = true
+  let hideTimeout = null
+  const sessionStartTime = Date.now()
 
-        if (isGameWindowReady) {
-          hideLauncherWhenGameReady()
-        } else if (data?.type === 'out' && !fallbackTimer) {
-          fallbackTimer = setTimeout(() => {
+  try {
+    const result = await launchMinecraft(
+      {
+        ...opts,
+        gameDir: effectiveGameDir,
+        isolateVersionFolders,
+        ramMin,
+        ramMax,
+        javaMode,
+        javaPath,
+        fullscreen,
+        width,
+        height,
+        gcPreset,
+        serverAutoConnect,
+        potatoMode,
+      },
+      (data) => {
+        mainWindow?.webContents.send('game:log', data)
+        // Minimize launcher only when the Minecraft game window actually initializes
+        if (!hasHidden && isGameProcessRunning && mainWindow && !mainWindow.isDestroyed()) {
+          const text = typeof data?.text === 'string' ? data.text : ''
+          const isGameWindowReady =
+            text.includes('Backend library: LWJGL') ||
+            text.includes('LWJGL Version') ||
+            text.includes('OpenAL initialized') ||
+            text.includes('Sound engine started') ||
+            text.includes('Reloading ResourceManager') ||
+            /Created: \d+x\d+/.test(text)
+
+          if (isGameWindowReady) {
             hideLauncherWhenGameReady()
-          }, 18000)
+          }
         }
+      },
+      (progress) => mainWindow?.webContents.send('game:progress', progress)
+    )
+
+    return result
+  } catch (err) {
+    console.error('[Main] game:launch unhandled error:', err)
+    return {
+      ok: false,
+      code: -1,
+      error: err?.message || 'Ошибка запуска игры',
+      logs: err?.stack || String(err),
+    }
+  } finally {
+    isGameProcessRunning = false
+    if (hideTimeout) {
+      clearTimeout(hideTimeout)
+      hideTimeout = null
+    }
+
+    // Record session playtime in stats
+    try {
+      const sessionDurationMs = Math.max(0, Date.now() - sessionStartTime)
+      const currentTotal = store.get('stats.totalPlaytimeMs') || 0
+      store.set('stats.totalPlaytimeMs', currentTotal + sessionDurationMs)
+      store.set('stats.lastSessionDurationMs', sessionDurationMs)
+      store.set('stats.lastPlayedTimestamp', Date.now())
+    } catch (statsErr) {
+      console.warn('[Main] Playtime save error:', statsErr.message)
+    }
+
+    // Revert Discord RPC status back to launcher
+    stopPlayingActivity()
+
+    // Safely restore and show launcher window without DWM freeze
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore()
+        }
+        mainWindow.show()
+        mainWindow.focus()
+        mainWindow.webContents.send('game:stopped')
+      } catch (winErr) {
+        console.warn('[Main] Window restore error:', winErr.message)
       }
-    },
-    (progress) => mainWindow?.webContents.send('game:progress', progress)
-  )
-
-  if (fallbackTimer) clearTimeout(fallbackTimer)
-
-  // Revert Discord RPC status back to launcher
-  stopPlayingActivity()
-
-  // Notify renderer that game has closed and restore window
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('game:stopped')
-    mainWindow.show()
-    mainWindow.restore()
-    mainWindow.focus()
+    }
   }
+})
 
-  return result
+ipcMain.handle('playtime:get', async () => {
+  try {
+    const totalPlaytimeMs = store.get('stats.totalPlaytimeMs') || 0
+    const lastSessionDurationMs = store.get('stats.lastSessionDurationMs') || 0
+    const lastPlayedTimestamp = store.get('stats.lastPlayedTimestamp') || null
+    return { totalPlaytimeMs, lastSessionDurationMs, lastPlayedTimestamp }
+  } catch (e) {
+    return { totalPlaytimeMs: 0, lastSessionDurationMs: 0, lastPlayedTimestamp: null }
+  }
 })
 
 ipcMain.handle('discord:setEnabled', async (_, enabled) => {
@@ -436,6 +494,24 @@ ipcMain.handle('folder:openVersionsDir', async (_, customDir) => {
   const versionsDir = path.join(gameDir, 'versions')
   if (!fs.existsSync(versionsDir)) fs.mkdirSync(versionsDir, { recursive: true })
   shell.openPath(versionsDir)
+  return true
+})
+
+ipcMain.handle('folder:openScreenshots', async (_, customDir) => {
+  const settings = store.get('settings') || {}
+  const gameDir = customDir || settings.gameDir || getDefaultGameDir()
+  const screenshotsDir = path.join(gameDir, 'screenshots')
+  if (!fs.existsSync(screenshotsDir)) fs.mkdirSync(screenshotsDir, { recursive: true })
+  shell.openPath(screenshotsDir)
+  return true
+})
+
+ipcMain.handle('folder:openSaves', async (_, customDir) => {
+  const settings = store.get('settings') || {}
+  const gameDir = customDir || settings.gameDir || getDefaultGameDir()
+  const savesDir = path.join(gameDir, 'saves')
+  if (!fs.existsSync(savesDir)) fs.mkdirSync(savesDir, { recursive: true })
+  shell.openPath(savesDir)
   return true
 })
 

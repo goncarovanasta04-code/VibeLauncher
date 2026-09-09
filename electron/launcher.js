@@ -1,13 +1,14 @@
 const { Client, Authenticator } = require('minecraft-launcher-core')
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
 const axios = require('axios')
 const { app } = require('electron')
 const { generateOfflineUUID } = require('./auth/elyby')
 const { resolveJavaRuntime, getRequiredJavaVersion, autoDownloadJava, probeJavaInfo } = require('./java')
 const { applyPotatoMinecraftOptions } = require('./potato')
 const child_process = require('child_process')
-const { execSync } = child_process
+const { spawnSync } = child_process
 
 function getDefaultGameDir() {
   if (app && typeof app.getPath === 'function') {
@@ -71,6 +72,16 @@ function cleanupCorruptFiles(rootDir) {
 /**
  * Ensures the base vanilla version JSON and client JAR are downloaded and valid
  */
+function isValidBaseJson(json) {
+  return Boolean(
+    json &&
+    typeof json === 'object' &&
+    Array.isArray(json.libraries) &&
+    json.libraries.length > 0 &&
+    (json.downloads?.client || json.assetIndex || json.mainClass)
+  )
+}
+
 async function ensureBaseMinecraftFiles(rootDir, baseMcVersion, onProgress) {
   const versionDir = path.join(rootDir, 'versions', baseMcVersion)
   const jsonPath = path.join(versionDir, `${baseMcVersion}.json`)
@@ -83,7 +94,10 @@ async function ensureBaseMinecraftFiles(rootDir, baseMcVersion, onProgress) {
   let baseJson = null
   if (fs.existsSync(jsonPath) && fs.statSync(jsonPath).size > 500) {
     try {
-      baseJson = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
+      const candidate = JSON.parse(fs.readFileSync(jsonPath, 'utf8'))
+      if (isValidBaseJson(candidate)) {
+        baseJson = candidate
+      }
     } catch (e) {}
   }
 
@@ -91,32 +105,52 @@ async function ensureBaseMinecraftFiles(rootDir, baseMcVersion, onProgress) {
   if (!baseJson && fs.existsSync(versionDir)) {
     try {
       const files = fs.readdirSync(versionDir)
-      const foundJson = files.find((f) => f.endsWith('.json'))
-      if (foundJson) {
-        const altJson = path.join(versionDir, foundJson)
-        if (fs.statSync(altJson).size > 500) {
-          baseJson = JSON.parse(fs.readFileSync(altJson, 'utf8'))
+      for (const f of files) {
+        if (f.endsWith('.json') && f !== `${baseMcVersion}.json`) {
+          const altJson = path.join(versionDir, f)
+          if (fs.statSync(altJson).size > 500) {
+            const candidate = JSON.parse(fs.readFileSync(altJson, 'utf8'))
+            if (isValidBaseJson(candidate)) {
+              baseJson = candidate
+              break
+            }
+          }
         }
       }
     } catch (e) {}
   }
 
   if (!baseJson) {
-    try {
-      if (onProgress) onProgress({ type: 'status', text: `Получение манифеста для Minecraft ${baseMcVersion}...` })
-      const manifestRes = await axios.get(
-        'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json',
-        { timeout: 15000 }
-      )
-      const found = manifestRes.data?.versions?.find((v) => v.id === baseMcVersion)
-      if (found && found.url) {
-        if (onProgress) onProgress({ type: 'status', text: `Загрузка данных версии ${baseMcVersion}...` })
-        const versionRes = await axios.get(found.url, { timeout: 20000 })
-        baseJson = versionRes.data
-        fs.writeFileSync(jsonPath, JSON.stringify(baseJson, null, 2), 'utf8')
+    const manifestUrls = [
+      'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json',
+      'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json',
+    ]
+
+    for (const mUrl of manifestUrls) {
+      try {
+        if (onProgress) onProgress({ type: 'status', text: `Получение манифеста для Minecraft ${baseMcVersion}...` })
+        const manifestRes = await axios.get(mUrl, { timeout: 15000 })
+        const found = manifestRes.data?.versions?.find((v) => v.id === baseMcVersion)
+        if (found && found.url) {
+          if (onProgress) onProgress({ type: 'status', text: `Загрузка данных версии ${baseMcVersion}...` })
+          let vUrl = found.url
+          try {
+            const versionRes = await axios.get(vUrl, { timeout: 20000 })
+            baseJson = versionRes.data
+          } catch (e) {
+            // If Mojang URL failed, try BMCLAPI mirror for version json
+            const bmclUrl = `https://bmclapi2.bangbang93.com/version/${baseMcVersion}/json`
+            const bmclRes = await axios.get(bmclUrl, { timeout: 20000 })
+            baseJson = bmclRes.data
+          }
+          if (baseJson) {
+            fs.writeFileSync(jsonPath, JSON.stringify(baseJson, null, 2), 'utf8')
+            break
+          }
+        }
+      } catch (e) {
+        console.warn(`[Launcher] Manifest lookup failed from ${mUrl}:`, e.message)
       }
-    } catch (e) {
-      console.warn('[Launcher] Mojang manifest lookup note:', e.message)
     }
 
     // If version is a custom offline/modded pack with local jar/json, allow it without Mojang manifest
@@ -138,11 +172,20 @@ async function ensureBaseMinecraftFiles(rootDir, baseMcVersion, onProgress) {
 
     if (!fs.existsSync(primaryIndexPath) || fs.statSync(primaryIndexPath).size < 1000) {
       if (onProgress) onProgress({ type: 'status', text: `Загрузка индекса ресурсов ${indexId}...` })
-      try {
-        const indexRes = await axios.get(baseJson.assetIndex.url, { timeout: 20000 })
-        fs.writeFileSync(primaryIndexPath, JSON.stringify(indexRes.data, null, 2), 'utf8')
-      } catch (e) {
-        console.warn('[Launcher] Error downloading asset index:', e.message)
+      const indexUrls = [
+        baseJson.assetIndex.url,
+        `https://bmclapi2.bangbang93.com/indexes/${indexId}.json`,
+      ]
+      for (const iUrl of indexUrls) {
+        try {
+          const indexRes = await axios.get(iUrl, { timeout: 20000 })
+          if (indexRes.data) {
+            fs.writeFileSync(primaryIndexPath, JSON.stringify(indexRes.data, null, 2), 'utf8')
+            break
+          }
+        } catch (e) {
+          console.warn(`[Launcher] Error downloading asset index from ${iUrl}:`, e.message)
+        }
       }
     }
 
@@ -158,27 +201,40 @@ async function ensureBaseMinecraftFiles(rootDir, baseMcVersion, onProgress) {
 
   // Ensure base client JAR exists
   if (!fs.existsSync(jarPath) || fs.statSync(jarPath).size < 100000) {
-    const clientUrl = baseJson?.downloads?.client?.url
-    if (clientUrl) {
-      if (onProgress) onProgress({ type: 'status', text: `Загрузка Minecraft ${baseMcVersion}.jar...` })
-      const jarRes = await axios.get(clientUrl, {
-        responseType: 'arraybuffer',
-        timeout: 60000,
-        onDownloadProgress: (progressEvent) => {
-          if (progressEvent.total && onProgress) {
-            onProgress({
-              type: 'download-status',
-              data: {
-                name: `${baseMcVersion}.jar`,
-                type: 'version-jar',
-                current: progressEvent.loaded,
-                total: progressEvent.total,
-              },
-            })
-          }
-        },
-      })
-      fs.writeFileSync(jarPath, Buffer.from(jarRes.data))
+    const jarUrls = [
+      baseJson?.downloads?.client?.url,
+      `https://bmclapi2.bangbang93.com/version/${baseMcVersion}/client`,
+    ].filter(Boolean)
+
+    let downloaded = false
+    for (const jUrl of jarUrls) {
+      try {
+        if (onProgress) onProgress({ type: 'status', text: `Загрузка Minecraft ${baseMcVersion}.jar...` })
+        const jarRes = await axios.get(jUrl, {
+          responseType: 'arraybuffer',
+          timeout: 60000,
+          onDownloadProgress: (progressEvent) => {
+            if (progressEvent.total && onProgress) {
+              onProgress({
+                type: 'download-status',
+                data: {
+                  name: `${baseMcVersion}.jar`,
+                  type: 'version-jar',
+                  current: progressEvent.loaded,
+                  total: progressEvent.total,
+                },
+              })
+            }
+          },
+        })
+        if (jarRes.data && jarRes.data.length > 100000) {
+          fs.writeFileSync(jarPath, Buffer.from(jarRes.data))
+          downloaded = true
+          break
+        }
+      } catch (err) {
+        console.warn(`[Launcher] Client JAR download failed from ${jUrl}:`, err.message)
+      }
     }
   }
 
@@ -228,8 +284,15 @@ async function ensureFabricProfile(rootDir, mcVersion, loaderVersion, baseJson) 
     if (!fabricData.assets && baseJson.assets) {
       fabricData.assets = baseJson.assets
     }
-    if (!fabricData.downloads && baseJson.downloads) {
-      fabricData.downloads = baseJson.downloads
+    if (baseJson.downloads) {
+      if (!fabricData.downloads) {
+        fabricData.downloads = baseJson.downloads
+      } else if (!fabricData.downloads.client && baseJson.downloads.client) {
+        fabricData.downloads.client = baseJson.downloads.client
+      }
+    }
+    if (!fabricData.mainClass && baseJson.mainClass) {
+      fabricData.mainClass = baseJson.mainClass
     }
     if (baseJson.arguments) {
       if (!fabricData.arguments) fabricData.arguments = {}
@@ -260,6 +323,15 @@ async function ensureFabricProfile(rootDir, mcVersion, loaderVersion, baseJson) 
   }
 
   fs.writeFileSync(jsonPath, JSON.stringify(fabricData, null, 2), 'utf8')
+
+  // Copy base vanilla jar to target version jar if missing
+  const baseJar = path.join(rootDir, 'versions', mcVersion, `${mcVersion}.jar`)
+  const targetJar = path.join(versionDir, `${versionId}.jar`)
+  if (fs.existsSync(baseJar) && (!fs.existsSync(targetJar) || fs.statSync(targetJar).size < 100000)) {
+    try {
+      fs.copyFileSync(baseJar, targetJar)
+    } catch (e) {}
+  }
 
   // Ensure index aliases exist in assets/indexes
   const indexDir = path.join(rootDir, 'assets', 'indexes')
@@ -504,12 +576,12 @@ async function launchMinecraft(opts, onLog, onProgress) {
   // For clean offline accounts: ensure Minecraft's SocialInteractionsService automatically uses OfflineSocialInteractions,
   // completely unlocking Multiplayer and Server list with zero Microsoft restriction tooltips.
   // Note: authlib-injector handles Ely.by automatically; do NOT override Mojang hosts for Ely.by.
-  // Note: never inject dead local ports (e.g. 127.0.0.1:25560) which cause ConnectException hangs.
-  if (authType === 'offline') {
+  if (authType === 'offline' || (authType !== 'microsoft' && authType !== 'elyby')) {
     customJvmArgs.push(
       '-Dminecraft.api.auth.host=https://authserver.mojang.com',
       '-Dminecraft.api.account.host=https://api.mojang.com',
-      '-Dminecraft.api.session.host=https://sessionserver.mojang.com'
+      '-Dminecraft.api.session.host=https://sessionserver.mojang.com',
+      '-Dminecraft.api.services.host=http://127.0.0.1:59999'
     )
   }
 
@@ -544,6 +616,13 @@ async function launchMinecraft(opts, onLog, onProgress) {
       const foundJson = vFiles.find((f) => f.endsWith('.json'))
       if (foundJson) {
         localJsonPath = path.join(versionFolder, foundJson)
+        // Auto-create alias <mcVersion>.json if the json had a different name (e.g. version.json)
+        // This is mandatory because MCLC line 176 strictly expects <custom>.json
+        const standardJson = path.join(versionFolder, `${mcVersion}.json`)
+        if (!fs.existsSync(standardJson)) {
+          fs.copyFileSync(localJsonPath, standardJson)
+          localJsonPath = standardJson
+        }
       }
     } catch (e) {}
   }
@@ -553,8 +632,19 @@ async function launchMinecraft(opts, onLog, onProgress) {
     try {
       localData = JSON.parse(fs.readFileSync(localJsonPath, 'utf8'))
       baseMcVersion = extractBaseMinecraftVersion(mcVersion, localData)
-      customVersion = mcVersion
-      versionJsonOverride = localJsonPath
+      // Only set customVersion if this is an actual custom/modded profile, NOT pure vanilla
+      const isCustomProfile =
+        mcVersion !== baseMcVersion ||
+        type === 'fabric' ||
+        type === 'forge' ||
+        type === 'quilt' ||
+        mcVersion.startsWith('fabric-') ||
+        mcVersion.startsWith('forge-') ||
+        Boolean(localData.inheritsFrom)
+      if (isCustomProfile) {
+        customVersion = mcVersion
+        versionJsonOverride = localJsonPath
+      }
     } catch (e) {}
   } else {
     const extracted = extractBaseMinecraftVersion(mcVersion, null)
@@ -575,7 +665,17 @@ async function launchMinecraft(opts, onLog, onProgress) {
         const anyJar = vFiles.find((f) => f.endsWith('.jar'))
         if (anyJar) {
           const jarP = path.join(versionFolder, anyJar)
-          if (fs.statSync(jarP).size > 10000) customMinecraftJar = jarP
+          if (fs.statSync(jarP).size > 10000) {
+            customMinecraftJar = jarP
+            // Also ensure alias <mcVersion>.jar exists so MCLC finds it directly
+            const standardJar = path.join(versionFolder, `${mcVersion}.jar`)
+            if (!fs.existsSync(standardJar)) {
+              try {
+                fs.copyFileSync(jarP, standardJar)
+                customMinecraftJar = standardJar
+              } catch (e) {}
+            }
+          }
         }
       }
     } catch (e) {}
@@ -594,19 +694,43 @@ async function launchMinecraft(opts, onLog, onProgress) {
     const baseJar = path.join(rootDir, 'versions', baseMcVersion, `${baseMcVersion}.jar`)
     if (fs.existsSync(baseJar)) {
       customMinecraftJar = baseJar
+      // Also copy baseJar to versionFolder if versionFolder exists but has no jar
+      if (fs.existsSync(versionFolder) && customVersion) {
+        const destJar = path.join(versionFolder, `${customVersion}.jar`)
+        if (!fs.existsSync(destJar)) {
+          try {
+            fs.copyFileSync(baseJar, destJar)
+            customMinecraftJar = destJar
+          } catch (e) {}
+        }
+      }
     }
   }
 
   // Ensure asset index is also duplicated for customVersion alias so MCLC never fails to find it
-  if (customVersion && baseMeta?.baseJson?.assetIndex) {
+  if (customVersion) {
     try {
       const indexDir = path.join(rootDir, 'assets', 'indexes')
-      const indexId = baseMeta.baseJson.assetIndex.id || baseMcVersion
-      const primaryIndexPath = path.join(indexDir, `${indexId}.json`)
-      if (fs.existsSync(primaryIndexPath)) {
-        const customIndexPath = path.join(indexDir, `${customVersion}.json`)
-        if (!fs.existsSync(customIndexPath)) {
+      fs.mkdirSync(indexDir, { recursive: true })
+      const customIndexPath = path.join(indexDir, `${customVersion}.json`)
+      if (!fs.existsSync(customIndexPath) || fs.statSync(customIndexPath).size < 100) {
+        const indexId = baseMeta?.baseJson?.assetIndex?.id || baseMcVersion
+        const primaryIndexPath = path.join(indexDir, `${indexId}.json`)
+        const vIndexPath = path.join(indexDir, `${baseMcVersion}.json`)
+        if (fs.existsSync(primaryIndexPath) && fs.statSync(primaryIndexPath).size > 500) {
           fs.copyFileSync(primaryIndexPath, customIndexPath)
+        } else if (fs.existsSync(vIndexPath) && fs.statSync(vIndexPath).size > 500) {
+          fs.copyFileSync(vIndexPath, customIndexPath)
+        } else {
+          // Find any valid index json in indexDir
+          const indices = fs.readdirSync(indexDir).filter((f) => f.endsWith('.json'))
+          for (const idx of indices) {
+            const fullIdx = path.join(indexDir, idx)
+            if (fs.statSync(fullIdx).size > 500) {
+              fs.copyFileSync(fullIdx, customIndexPath)
+              break
+            }
+          }
         }
       }
     } catch (e) {}
@@ -651,7 +775,7 @@ async function launchMinecraft(opts, onLog, onProgress) {
       customMinecraftJar = path.join(rootDir, 'versions', baseMcVersion, `${baseMcVersion}.jar`)
     }
 
-    // Merge base JSON properties if missing
+    // Merge base JSON properties if missing so MCLC never encounters undefined client, libraries, or asset index
     if (baseMeta?.baseJson) {
       let updated = false
       if (!localData.assetIndex && baseMeta.baseJson.assetIndex) {
@@ -664,6 +788,10 @@ async function launchMinecraft(opts, onLog, onProgress) {
       }
       if (!localData.downloads && baseMeta.baseJson.downloads) {
         localData.downloads = baseMeta.baseJson.downloads
+        updated = true
+      } else if (!localData.downloads?.client && baseMeta.baseJson.downloads?.client) {
+        if (!localData.downloads) localData.downloads = {}
+        localData.downloads.client = baseMeta.baseJson.downloads.client
         updated = true
       }
       if (baseMeta.baseJson.arguments) {
@@ -681,9 +809,34 @@ async function launchMinecraft(opts, onLog, onProgress) {
         localData.minecraftArguments = baseMeta.baseJson.minecraftArguments
         updated = true
       }
+      if (!localData.mainClass && baseMeta.baseJson.mainClass) {
+        localData.mainClass = baseMeta.baseJson.mainClass
+        updated = true
+      }
+
+      // Merge libraries: custom client libraries take priority, followed by base vanilla libraries
+      const seen = new Set()
+      const mergedLibs = []
+      const allLibs = [...(localData.libraries || []), ...(baseMeta.baseJson.libraries || [])]
+      for (const lib of allLibs) {
+        const key = lib.name || lib.id || JSON.stringify(lib)
+        if (!seen.has(key)) {
+          seen.add(key)
+          mergedLibs.push(lib)
+        }
+      }
+      if (mergedLibs.length > 0 && (!localData.libraries || localData.libraries.length !== mergedLibs.length)) {
+        localData.libraries = mergedLibs
+        updated = true
+      }
+
       if (updated) {
         try {
           fs.writeFileSync(localJsonPath, JSON.stringify(localData, null, 2), 'utf8')
+          const standardJson = path.join(versionFolder, `${mcVersion}.json`)
+          if (localJsonPath !== standardJson) {
+            fs.writeFileSync(standardJson, JSON.stringify(localData, null, 2), 'utf8')
+          }
         } catch (e) {}
       }
     }
@@ -704,6 +857,17 @@ async function launchMinecraft(opts, onLog, onProgress) {
   if (isPotato && numRamMax > 3) {
     numRamMax = 2 // Potato mode caps at 2GB to avoid Windows memory pressure and JVM crashes
   }
+
+  // Check physical RAM availability on the PC to avoid 'Could not reserve enough space'
+  try {
+    const totalPhysicalMb = Math.round(os.totalmem() / 1024 / 1024)
+    // Always leave at least 1500MB free for Windows and background apps
+    const safeMaxAllocMb = Math.max(1024, totalPhysicalMb - 1500)
+    if (numRamMax * 1024 > safeMaxAllocMb) {
+      numRamMax = Math.max(1, Math.floor(safeMaxAllocMb / 1024))
+    }
+  } catch (e) {}
+
   const numRamMin = Math.min(numRamMax, Math.max(1, Number(ramMin) || 1))
 
   // Pass exact megabytes so MCLC never gets confused by string units or min > max
@@ -744,12 +908,6 @@ async function launchMinecraft(opts, onLog, onProgress) {
   let resolvedJava = 'java'
   try {
     if (javaMode === 'manual' && javaPath && javaPath.trim() && fs.existsSync(javaPath.trim())) {
-      const manualInfo = probeJavaInfo(javaPath.trim())
-      if (manualInfo?.is64Bit === false && numRamMax > 1.5) {
-        console.warn('[Launcher] Selected manual Java is 32-bit, capping RAM to 1024M to avoid crash')
-        maxMemory = '1024M'
-        minMemory = '512M'
-      }
       resolvedJava = javaPath.trim()
       console.log(`[Launcher] Using user manual Java: ${resolvedJava}`)
     } else {
@@ -760,9 +918,23 @@ async function launchMinecraft(opts, onLog, onProgress) {
     resolvedJava = findJavaExecutable(javaPath)
   }
 
-  // Fast pre-flight dry run to ensure the selected Java executable can actually allocate heap without crashing
+  // Safety check for 32-bit Java
   try {
-    execSync(`"${resolvedJava}" -Xms64M -Xmx128M -version 2>&1`, { timeout: 3000 })
+    const jInfo = probeJavaInfo(resolvedJava)
+    if (jInfo && jInfo.is64Bit === false && numRamMax > 1.5) {
+      console.warn('[Launcher] 32-bit Java runtime detected, capping RAM to 1024M to avoid crash')
+      numRamMax = 1
+      maxMemory = '1024M'
+      minMemory = '512M'
+    }
+  } catch (e) {}
+
+  // Fast pre-flight dry run with spawnSync to ensure the selected Java executable can actually allocate heap
+  try {
+    const dryRun = spawnSync(resolvedJava, ['-Xms64M', '-Xmx128M', '-version'], { timeout: 4000, shell: false })
+    if (dryRun.error || dryRun.status !== 0) {
+      throw dryRun.error || new Error(`Exit code ${dryRun.status}`)
+    }
   } catch (dryErr) {
     console.warn(`[Launcher] Java dry-run failed with ${resolvedJava}:`, dryErr.message)
     try {
@@ -773,6 +945,24 @@ async function launchMinecraft(opts, onLog, onProgress) {
       console.warn('[Launcher] Auto-download fallback failed:', e.message)
     }
   }
+
+  // Test full JVM memory allocation & arguments before Minecraft launches
+  try {
+    const fullTest = spawnSync(
+      resolvedJava,
+      [`-Xms${minMemory}`, `-Xmx${maxMemory}`, ...customJvmArgs, '-version'],
+      { timeout: 4000, windowsHide: true }
+    )
+    if (fullTest.error || fullTest.status !== 0) {
+      console.warn('[Launcher] Full JVM flags test failed, falling back to safe 2048M and clean G1GC:', fullTest.stderr?.toString())
+      numRamMax = Math.min(numRamMax, 2)
+      numRamMin = 1
+      maxMemory = `${numRamMax * 1024}M`
+      minMemory = `${numRamMin * 1024}M`
+      customJvmArgs.length = 0
+      customJvmArgs.push('-XX:+UseG1GC')
+    }
+  } catch (e) {}
 
   // Per-version content isolation: create mods/, shaderpacks/, resourcepacks/ inside version folder
   const effectiveVersionFolder = customVersion || mcVersion || baseMcVersion
@@ -800,44 +990,111 @@ async function launchMinecraft(opts, onLog, onProgress) {
     } catch (e) {}
   }
 
+  const isCustomVersion = Boolean(customVersion && customVersion !== baseMcVersion)
+
+  // Auto-detect primary display resolution so Minecraft matches the player's monitor perfectly
+  let screenWidth = 1920
+  let screenHeight = 1080
+  try {
+    const { screen } = require('electron')
+    if (screen) {
+      const primary = screen.getPrimaryDisplay()
+      if (primary && primary.bounds) {
+        screenWidth = primary.bounds.width
+        screenHeight = primary.bounds.height
+      }
+    }
+  } catch (e) {
+    if (opts.screenWidth && opts.screenHeight) {
+      screenWidth = Number(opts.screenWidth)
+      screenHeight = Number(opts.screenHeight)
+    }
+  }
+
   const launchOptions = {
     authorization: auth,
     root: rootDir,
     version: {
       number: baseMcVersion,
       type: 'release',
-      custom: customVersion,
+      custom: isCustomVersion ? customVersion : undefined,
     },
     memory: {
       max: maxMemory,
       min: minMemory,
     },
-    window: fullscreen
-      ? { fullscreen: true }
-      : { width: Number(width) || 1920, height: Number(height) || 1080 },
+    window: {
+      width: screenWidth,
+      height: screenHeight,
+    },
     javaPath: resolvedJava,
     customArgs: customJvmArgs.length > 0 ? customJvmArgs : undefined,
     overrides: {
       detached: false,
-      versionJson: versionJsonOverride,
-      versionName: customVersion,
+      versionJson: isCustomVersion ? versionJsonOverride : undefined,
+      versionName: isCustomVersion ? customVersion : undefined,
       minecraftJar: customMinecraftJar,
       gameDirectory: isolateVersionFolders === true ? isolatedGameDir : undefined,
       cwd: rootDir,
       natives: nativesDir,
       assetRoot: path.join(rootDir, 'assets'),
       assetIndex: baseMeta?.baseJson?.assetIndex?.id || baseMcVersion,
+      maxSockets: 8,
     },
+  }
+
+  // Detect Forge installer jar if launching Forge (must be the installer jar, NOT the client jar!)
+  if (type === 'forge' || (mcVersion && mcVersion.toLowerCase().includes('forge'))) {
+    if (fs.existsSync(versionFolder)) {
+      try {
+        const vFiles = fs.readdirSync(versionFolder)
+        const forgeJar = vFiles.find(
+          (f) => f === 'forge-installer.jar' || (f.includes('installer') && f.endsWith('.jar'))
+        )
+        if (forgeJar) {
+          launchOptions.forge = path.join(versionFolder, forgeJar)
+        }
+      } catch (e) {}
+    }
   }
 
 function analyzeCrashLogs(logs, exitCode) {
   const fullText = (logs || []).join('\n')
 
   if (
+    fullText.includes('ENOENT') ||
+    fullText.includes('no such file or directory') ||
+    fullText.includes('Не удается найти указанный файл')
+  ) {
+    return 'Не найдены обязательные файлы клиента или ресурсов (ENOENT). Включите чекбокс «Обновить клиент» и запустите снова.'
+  }
+  if (
+    fullText.includes("Cannot read properties of undefined (reading 'client')") ||
+    fullText.includes("Cannot read properties of undefined (reading 'url')") ||
+    fullText.includes('Failed to find version')
+  ) {
+    return 'Нарушена структура манифеста версии Minecraft. Попробуйте обновить версию или переустановить клиент.'
+  }
+  if (
+    fullText.includes('ETIMEDOUT') ||
+    fullText.includes('ECONNRESET') ||
+    fullText.includes('ENOTFOUND') ||
+    fullText.includes('socket hang up') ||
+    fullText.includes('timeout')
+  ) {
+    return 'Ошибка сетевого подключения при скачивании ресурсов игры. Проверьте интернет или отключите блокирующий VPN.'
+  }
+  if (
+    fullText.includes('UnsatisfiedLinkError')
+  ) {
+    return 'Ошибка загрузки системных библиотек (Natives). Включите чекбокс «Обновить клиент» для переустановки.'
+  }
+  if (
     fullText.includes('Could not reserve enough space') ||
     fullText.includes('OutOfMemoryError') ||
     fullText.includes('Out of memory') ||
-    fullText.includes('insufficient memory')
+    fullText.includes('insufficient memory') ||
+    fullText.includes('Java heap space')
   ) {
     return 'Недостаточно оперативной памяти для выделения JVM. Уменьшите или увеличьте объем RAM в настройках лаунчера.'
   }
@@ -876,6 +1133,14 @@ function analyzeCrashLogs(logs, exitCode) {
     return 'Повреждены или отсутствуют файлы клиента игры. Включите чекбокс «Обновить клиент» и запустите снова.'
   }
   if (
+    fullText.includes("Cannot read properties of undefined (reading 'map')") ||
+    fullText.includes("Cannot read properties of undefined (reading 'client')") ||
+    fullText.includes("Cannot read properties of undefined (reading 'url')") ||
+    fullText.includes('Failed to find version')
+  ) {
+    return 'Нарушена структура библиотек или манифеста версии Minecraft. Попробуйте включить чекбокс «Обновить клиент» перед запуском.'
+  }
+  if (
     fullText.includes('java.nio.file.FileSystemException') ||
     fullText.includes('AccessDeniedException')
   ) {
@@ -889,6 +1154,14 @@ function analyzeCrashLogs(logs, exitCode) {
   return new Promise((resolve) => {
     const launcher = new Client()
     const recentLogs = []
+    let hasResolved = false
+
+    const safeResolve = (data) => {
+      if (hasResolved) return
+      hasResolved = true
+      try { launcher.removeAllListeners() } catch (e) {}
+      resolve(data)
+    }
 
     const addLog = (text) => {
       if (typeof text !== 'string') text = String(text || '')
@@ -918,12 +1191,11 @@ function analyzeCrashLogs(logs, exitCode) {
     })
 
     launcher.on('close', (code) => {
-      launcher.removeAllListeners()
       if (code === 0) {
-        resolve({ ok: true, code: 0 })
+        safeResolve({ ok: true, code: 0 })
       } else {
         const errorReason = analyzeCrashLogs(recentLogs, code)
-        resolve({
+        safeResolve({
           ok: false,
           code,
           error: errorReason,
@@ -933,9 +1205,8 @@ function analyzeCrashLogs(logs, exitCode) {
     })
 
     launcher.on('error', (err) => {
-      launcher.removeAllListeners()
       const errorReason = analyzeCrashLogs([...recentLogs, err?.message || String(err)])
-      resolve({
+      safeResolve({
         ok: false,
         code: -1,
         error: errorReason,
@@ -943,21 +1214,50 @@ function analyzeCrashLogs(logs, exitCode) {
       })
     })
 
-    try {
-      launcher.launch(launchOptions).catch((err) => {
-        launcher.removeAllListeners()
-        const errorReason = analyzeCrashLogs([...recentLogs, err?.message || String(err)])
-        resolve({
+    // Timeout safety guard (120 seconds max for asset preparation & launch)
+    const timeoutTimer = setTimeout(() => {
+      if (!hasResolved) {
+        const errorReason = analyzeCrashLogs(recentLogs, -1)
+        safeResolve({
           ok: false,
           code: -1,
-          error: errorReason,
-          logs: recentLogs.slice(-60).join('\n') || err?.stack || err?.message || String(err),
+          error: 'Таймаут инициализации игры (120с). ' + errorReason,
+          logs: recentLogs.slice(-60).join('\n'),
         })
-      })
+      }
+    }, 120000)
+
+    try {
+      launcher
+        .launch(launchOptions)
+        .then((proc) => {
+          if (!proc) {
+            clearTimeout(timeoutTimer)
+            const errorReason = analyzeCrashLogs(recentLogs, -1)
+            safeResolve({
+              ok: false,
+              code: -1,
+              error: errorReason,
+              logs:
+                recentLogs.slice(-60).join('\n') ||
+                'Minecraft process failed to initialize (MCLC returned null).',
+            })
+          }
+        })
+        .catch((err) => {
+          clearTimeout(timeoutTimer)
+          const errorReason = analyzeCrashLogs([...recentLogs, err?.message || String(err)])
+          safeResolve({
+            ok: false,
+            code: -1,
+            error: errorReason,
+            logs: recentLogs.slice(-60).join('\n') || err?.stack || err?.message || String(err),
+          })
+        })
     } catch (e) {
-      launcher.removeAllListeners()
+      clearTimeout(timeoutTimer)
       const errorReason = analyzeCrashLogs([...recentLogs, e?.message || String(e)])
-      resolve({
+      safeResolve({
         ok: false,
         code: -1,
         error: errorReason,

@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('vibe', {
 
   // Mods / Shaders / Resourcepacks (Modrinth)
   searchMods: (params) => ipcRenderer.invoke('mods:searchModrinth', params),
+  getModDetails: (slugOrId) => ipcRenderer.invoke('mods:getDetails', slugOrId),
   getModVersions: (params) => ipcRenderer.invoke('mods:getVersions', params),
   installModFile: (opts) => ipcRenderer.invoke('mods:installFile', opts),
   getInstalledMods: (versionId, gameDir) => ipcRenderer.invoke('mods:getInstalled', { versionId, gameDir }),
@@ -58,6 +59,7 @@ contextBridge.exposeInMainWorld('vibe', {
   discoverJava: () => ipcRenderer.invoke('java:discover'),
   probeJava: (javaPath) => ipcRenderer.invoke('java:probe', javaPath),
   getSystemMemory: () => ipcRenderer.invoke('system:getMemory'),
+  getScreenResolution: () => ipcRenderer.invoke('system:getScreenResolution'),
   applyPotatoOptions: (gameDir) => ipcRenderer.invoke('potato:apply', gameDir),
 
   // Discord RPC
@@ -70,6 +72,11 @@ contextBridge.exposeInMainWorld('vibe', {
   installUpdate: () => ipcRenderer.invoke('updater:install'),
   onUpdateProgress: (cb) => ipcRenderer.on('updater:progress', (_, data) => cb(data)),
   offUpdateProgress: () => ipcRenderer.removeAllListeners('updater:progress'),
+
+  // Screenshots & Saves
+  openScreenshotsDir: (gameDir) => ipcRenderer.invoke('folder:openScreenshots', gameDir),
+  openSavesDir: (gameDir) => ipcRenderer.invoke('folder:openSaves', gameDir),
+  getPlaytimeStats: () => ipcRenderer.invoke('playtime:get'),
 
   // External
   openExternal: (url) => ipcRenderer.send('open:external', url),

@@ -25,6 +25,7 @@ import { THEMES, applyTheme, getCurrentTheme } from '../utils/themeManager'
 import Mini3DCanvas from './Mini3DCanvas'
 import bgVideo from '../assets/bg.mp4'
 import styles from './ThemesModal.module.css'
+import { useLanguage } from '../context/LanguageContext'
 
 const ICON_MAP = {
   Film,
@@ -42,6 +43,7 @@ const ICON_MAP = {
 }
 
 export default function ThemesModal({ onClose }) {
+  const { t } = useLanguage()
   const [selectedThemeId, setSelectedThemeId] = useState(getCurrentTheme().id)
   const [activeFilter, setActiveFilter] = useState('all') // 'all' | '3d' | 'motion' | 'art' | 'minimal'
   const [hoveredTheme, setHoveredTheme] = useState(null)
@@ -78,6 +80,27 @@ export default function ThemesModal({ onClose }) {
   const tooltipX = Math.min(window.innerWidth - 330, Math.max(20, mousePos.x + 22))
   const tooltipY = Math.min(window.innerHeight - 270, Math.max(20, mousePos.y - 130))
 
+  const getThemeName = (item) => {
+    if (!item) return ''
+    const key = `theme_name_${item.id.replace(/-/g, '_')}`
+    const val = t(key)
+    return val !== key ? val : item.name
+  }
+
+  const getThemeDesc = (item) => {
+    if (!item) return ''
+    const key = `theme_desc_${item.id.replace(/-/g, '_')}`
+    const val = t(key)
+    return val !== key ? val : item.description
+  }
+
+  const getThemeTag = (item) => {
+    if (!item) return ''
+    const key = `theme_tag_${item.id.replace(/-/g, '_')}`
+    const val = t(key)
+    return val !== key ? val : item.tag
+  }
+
   return (
     <div className={styles.overlay} onClick={onClose} onMouseMove={handleMouseMove}>
       <div
@@ -94,19 +117,19 @@ export default function ThemesModal({ onClose }) {
             </div>
             <div>
               <div className={styles.headerTitleRow}>
-                <h2 className={styles.title}>Студия Темы & Эффектов</h2>
-                <span className={styles.themeCountBadge}>{THEMES.length} стилей</span>
+                <h2 className={styles.title}>{t('themes_modal_title')}</h2>
+                <span className={styles.themeCountBadge}>
+                  {t('themes_styles_count', { count: THEMES.length })}
+                </span>
               </div>
-              <p className={styles.subtitle}>
-                Живые 3D-шейдеры, видео-фоны и высокохудожественные арты Minecraft
-              </p>
+              <p className={styles.subtitle}>{t('themes_modal_subtitle')}</p>
             </div>
           </div>
           <button
             type="button"
             className={styles.closeBtn}
             onClick={onClose}
-            title="Закрыть (Esc)"
+            title={t('close')}
           >
             <X size={18} />
           </button>
@@ -120,7 +143,7 @@ export default function ThemesModal({ onClose }) {
             onClick={() => setActiveFilter('all')}
           >
             <Layers size={14} />
-            <span>Все темы ({THEMES.length})</span>
+            <span>{t('themes_filter_all', { count: THEMES.length })}</span>
           </button>
           <button
             type="button"
@@ -128,7 +151,9 @@ export default function ThemesModal({ onClose }) {
             onClick={() => setActiveFilter('3d')}
           >
             <Box size={14} />
-            <span>3D Анимации ({THEMES.filter((t) => t.is3D || t.is3DMonochrome).length})</span>
+            <span>
+              {t('themes_filter_3d', { count: THEMES.filter((t) => t.is3D || t.is3DMonochrome).length })}
+            </span>
           </button>
           <button
             type="button"
@@ -136,7 +161,9 @@ export default function ThemesModal({ onClose }) {
             onClick={() => setActiveFilter('motion')}
           >
             <Film size={14} />
-            <span>Живой видео-фон ({THEMES.filter((t) => t.category === 'motion').length})</span>
+            <span>
+              {t('themes_filter_motion', { count: THEMES.filter((t) => t.category === 'motion').length })}
+            </span>
           </button>
           <button
             type="button"
@@ -144,7 +171,9 @@ export default function ThemesModal({ onClose }) {
             onClick={() => setActiveFilter('art')}
           >
             <ImageIcon size={14} />
-            <span>Minecraft-арты ({THEMES.filter((t) => t.category === 'art').length})</span>
+            <span>
+              {t('themes_filter_art', { count: THEMES.filter((t) => t.category === 'art').length })}
+            </span>
           </button>
           <button
             type="button"
@@ -152,7 +181,9 @@ export default function ThemesModal({ onClose }) {
             onClick={() => setActiveFilter('minimal')}
           >
             <Moon size={14} />
-            <span>Минимализм ({THEMES.filter((t) => t.category === 'minimal' && !t.is3D).length})</span>
+            <span>
+              {t('themes_filter_minimal', { count: THEMES.filter((t) => t.category === 'minimal' && !t.is3D).length })}
+            </span>
           </button>
         </div>
 
@@ -220,13 +251,13 @@ export default function ThemesModal({ onClose }) {
                       {is3DTheme && <Box size={11} className={styles.tagIcon} />}
                       {theme.isVideo && <Film size={11} className={styles.tagIcon} />}
                       {!is3DTheme && !theme.isVideo && <Sparkles size={11} className={styles.tagIcon} />}
-                      <span>{theme.tag}</span>
+                      <span>{getThemeTag(theme)}</span>
                     </span>
 
                     {isActive && (
                       <div className={styles.activePillBadge}>
                         <Check size={12} strokeWidth={3} />
-                        <span>Выбрано</span>
+                        <span>{t('themes_selected')}</span>
                       </div>
                     )}
                   </div>
@@ -247,37 +278,37 @@ export default function ThemesModal({ onClose }) {
                     </div>
 
                     <div className={styles.titleCol}>
-                      <span className={styles.themeName}>{theme.name}</span>
+                      <span className={styles.themeName}>{getThemeName(theme)}</span>
                       <span className={styles.themeCategoryLabel}>
                         {is3DTheme
-                          ? 'Интерактивный 3D-мир'
+                          ? t('themes_cat_3d')
                           : theme.isVideo
-                          ? 'Анимированная живая сцена'
+                          ? t('themes_cat_motion')
                           : theme.isPlainBg
-                          ? 'Премиальный минимализм'
-                          : 'Художественный арт Minecraft'}
+                          ? t('themes_cat_minimal')
+                          : t('themes_cat_art')}
                       </span>
                     </div>
                   </div>
 
-                  <p className={styles.themeDesc}>{theme.description}</p>
+                  <p className={styles.themeDesc}>{getThemeDesc(theme)}</p>
 
                   <div className={styles.cardBottomRow}>
                     <div className={styles.colorPills}>
                       <span
                         className={styles.colorDot}
                         style={{ backgroundColor: theme.accent, boxShadow: `0 0 8px ${theme.accent}` }}
-                        title="Основной акцент"
+                        title={t('themes_dot_accent')}
                       />
                       <span
                         className={styles.colorDot}
                         style={{ backgroundColor: theme.accentSec || theme.accent }}
-                        title="Градиентный тон"
+                        title={t('themes_dot_gradient')}
                       />
                       <span
                         className={styles.colorDot}
                         style={{ backgroundColor: theme.accentIce || '#ffffff' }}
-                        title="Неоновое свечение"
+                        title={t('themes_dot_glow')}
                       />
                     </div>
 
@@ -292,10 +323,10 @@ export default function ThemesModal({ onClose }) {
                       {isActive ? (
                         <>
                           <Check size={13} strokeWidth={2.5} />
-                          <span>Активно</span>
+                          <span>{t('themes_active')}</span>
                         </>
                       ) : (
-                        <span>Выбрать тему</span>
+                        <span>{t('themes_select_theme')}</span>
                       )}
                     </button>
                   </div>
@@ -309,10 +340,10 @@ export default function ThemesModal({ onClose }) {
         <div className={styles.footerBar}>
           <div className={styles.footerTip}>
             <Sparkles size={15} className={styles.footerSparkle} />
-            <span>Тема применяется моментально, меняя фоновые анимации, частицы и свечение кнопок</span>
+            <span>{t('themes_footer_tip')}</span>
           </div>
           <button type="button" className={styles.doneBtn} onClick={onClose}>
-            Готово
+            {t('ready')}
           </button>
         </div>
       </div>
@@ -339,7 +370,7 @@ export default function ThemesModal({ onClose }) {
                 />
                 <div className={styles.floatingBadge3D}>
                   <Box size={12} />
-                  <span>3D Realtime</span>
+                  <span>{t('themes_badge_3d')}</span>
                 </div>
               </div>
             ) : hoveredTheme.isVideo ? (
@@ -354,7 +385,7 @@ export default function ThemesModal({ onClose }) {
                 />
                 <div className={styles.floatingBadgeVideo}>
                   <Play size={12} />
-                  <span>Живой фон</span>
+                  <span>{t('themes_badge_video')}</span>
                 </div>
               </div>
             ) : hoveredTheme.bgImage ? (
@@ -365,7 +396,7 @@ export default function ThemesModal({ onClose }) {
                 <div className={styles.floatingImageShine} />
                 <div className={styles.floatingBadgeArt}>
                   <Sparkles size={12} />
-                  <span>Ultra HD Art</span>
+                  <span>{t('themes_badge_art')}</span>
                 </div>
               </div>
             ) : (
@@ -378,7 +409,7 @@ export default function ThemesModal({ onClose }) {
 
           <div className={styles.floatingContent}>
             <div className={styles.floatingHeaderRow}>
-              <span className={styles.floatingTitle}>{hoveredTheme.name}</span>
+              <span className={styles.floatingTitle}>{getThemeName(hoveredTheme)}</span>
               <span
                 className={styles.floatingTag}
                 style={{
@@ -387,12 +418,12 @@ export default function ThemesModal({ onClose }) {
                   background: `${hoveredTheme.accent}1a`,
                 }}
               >
-                {hoveredTheme.tag}
+                {getThemeTag(hoveredTheme)}
               </span>
             </div>
-            <p className={styles.floatingDesc}>{hoveredTheme.description}</p>
+            <p className={styles.floatingDesc}>{getThemeDesc(hoveredTheme)}</p>
             <div className={styles.floatingFooter}>
-              <span className={styles.floatingHint}>Нажми карточку для применения</span>
+              <span className={styles.floatingHint}>{t('themes_click_apply')}</span>
               <ArrowUpRight size={14} style={{ color: hoveredTheme.accent }} />
             </div>
           </div>

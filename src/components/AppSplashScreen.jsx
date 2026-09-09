@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import launcherIcon from '../assets/icon.png'
 import packageInfo from '../../package.json'
+import { useLanguage } from '../context/LanguageContext'
 import styles from './AppSplashScreen.module.css'
 
 /**
@@ -9,8 +10,9 @@ import styles from './AppSplashScreen.module.css'
  * and high-performance smooth animations.
  */
 export default function AppSplashScreen({ onReady }) {
+  const { t } = useLanguage()
   const [progress, setProgress] = useState(15)
-  const [statusText, setStatusText] = useState('Инициализация ядра...')
+  const [statusText, setStatusText] = useState(() => t('splash_init_core'))
   const [fadingOut, setFadingOut] = useState(false)
 
   useEffect(() => {
@@ -20,28 +22,28 @@ export default function AppSplashScreen({ onReady }) {
       try {
         // Step 1: Load settings
         if (!isMounted) return
-        setStatusText('Загрузка конфигурации...')
+        setStatusText(t('splash_loading_config'))
         setProgress(30)
         await window.vibe?.storeGet('settings')
 
         // Step 2: Initialize Theme & Profile
         await new Promise((r) => setTimeout(r, 200))
         if (!isMounted) return
-        setStatusText('Проверка профиля игрока...')
+        setStatusText(t('splash_checking_profile'))
         setProgress(60)
         await window.vibe?.storeGet('profile')
 
         // Step 3: Scan installed Minecraft builds
         await new Promise((r) => setTimeout(r, 220))
         if (!isMounted) return
-        setStatusText('Синхронизация игровых сборок...')
+        setStatusText(t('splash_syncing_builds'))
         setProgress(85)
         await window.vibe?.getLocalVersions?.()
 
         // Step 4: Finalize
         await new Promise((r) => setTimeout(r, 180))
         if (!isMounted) return
-        setStatusText('Готово к запуску!')
+        setStatusText(t('splash_ready'))
         setProgress(100)
 
         await new Promise((r) => setTimeout(r, 250))

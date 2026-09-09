@@ -14,13 +14,20 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import styles from './Versions.module.css'
+import { useLanguage } from '../context/LanguageContext'
 
-const TABS = ['Установленные', 'Vanilla', 'Fabric', 'Forge']
+const TAB_KEYS = [
+  { id: 'installed', labelKey: 'versions_tab_installed' },
+  { id: 'vanilla', labelKey: 'versions_tab_vanilla' },
+  { id: 'fabric', labelKey: 'versions_tab_fabric' },
+  { id: 'forge', labelKey: 'versions_tab_forge' },
+]
+
 const POPULAR_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2', '1.16.5', '1.12.2', '1.8.9']
 
 const TYPE_COLORS = {
-  release: '#38bdf8',
-  vanilla: '#38bdf8',
+  release: '#ffffff',
+  vanilla: '#ffffff',
   fabric: '#a855f7',
   forge: '#eab308',
   optifine: '#ec4899',
@@ -31,7 +38,8 @@ const TYPE_COLORS = {
 }
 
 export default function Versions({ onSelectVersion, onNavigate }) {
-  const [tab, setTab] = useState('Установленные')
+  const { t } = useLanguage()
+  const [tab, setTab] = useState('installed')
   const [versions, setVersions] = useState([])
   const [localVersions, setLocalVersions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -63,16 +71,16 @@ export default function Versions({ onSelectVersion, onNavigate }) {
         setLocalVersions(localRes.versions || [])
       }
 
-      if (tab === 'Установленные') {
+      if (tab === 'installed') {
         // localVersions already loaded
-      } else if (tab === 'Vanilla') {
+      } else if (tab === 'vanilla') {
         const res = await window.vibe?.getVersionManifest()
         if (res?.ok) setVersions(res.versions || [])
-      } else if (tab === 'Fabric') {
+      } else if (tab === 'fabric') {
         setLoaderVersions([])
         const res = await window.vibe?.getFabricVersions(targetMcVer)
         if (res?.ok) setLoaderVersions(res.versions || [])
-      } else if (tab === 'Forge') {
+      } else if (tab === 'forge') {
         setLoaderVersions([])
         const res = await window.vibe?.getForgeVersions(targetMcVer)
         if (res?.ok) setLoaderVersions(res.versions || [])
@@ -87,7 +95,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
     const vId = versionObj.id || versionObj
     const id = `${type}-${vId}-${loaderVersion || ''}`
     setInstalling(id)
-    setProgress({ task: 'Подготовка...', current: 0, total: 1 })
+    setProgress({ task: t('loading'), current: 0, total: 1 })
 
     const settings = (await window.vibe?.storeGet('settings')) || {}
     const result = await window.vibe?.installVersion({
@@ -109,6 +117,8 @@ export default function Versions({ onSelectVersion, onNavigate }) {
         await window.vibe?.storeSet('lastVersion', installedItem)
         onSelectVersion(installedItem)
       }
+    } else {
+      alert(result?.error || 'Ошибка при установке версии')
     }
 
     setInstalling(null)
@@ -116,7 +126,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
   }
 
   const handleDelete = async (versionId) => {
-    if (window.confirm(`Вы уверены, что хотите удалить версию ${versionId}?`)) {
+    if (window.confirm(t('versions_confirm_delete', { version: versionId }))) {
       await window.vibe?.deleteVersion(versionId)
       await loadData()
     }
@@ -160,15 +170,15 @@ export default function Versions({ onSelectVersion, onNavigate }) {
         {/* Header Tabs & Controls */}
         <div className={styles.header}>
           <div className={styles.tabs}>
-            {TABS.map((t) => (
+            {TAB_KEYS.map((item) => (
               <button
-                key={t}
+                key={item.id}
                 type="button"
-                className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`}
-                onClick={() => setTab(t)}
+                className={`${styles.tab} ${tab === item.id ? styles.tabActive : ''}`}
+                onClick={() => setTab(item.id)}
               >
-                {t}
-                {t === 'Установленные' && localVersions.length > 0 && (
+                {t(item.labelKey)}
+                {item.id === 'installed' && localVersions.length > 0 && (
                   <span className={styles.tabBadge}>{localVersions.length}</span>
                 )}
               </button>
@@ -180,7 +190,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
               <Search size={13} className={styles.searchIcon} />
               <input
                 type="text"
-                placeholder="Поиск версии..."
+                placeholder={t('versions_search_placeholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className={styles.searchInput}
@@ -200,17 +210,17 @@ export default function Versions({ onSelectVersion, onNavigate }) {
               type="button"
               className={styles.openFolderBtn}
               onClick={handleOpenVersionsFolder}
-              title="Открыть папку versions"
+              title={t('versions_folder_btn')}
             >
               <Folder size={14} />
-              <span>Папка версий</span>
+              <span>{t('versions_folder_btn')}</span>
             </button>
 
             <button
               type="button"
               className={styles.refreshBtn}
               onClick={() => loadData()}
-              title="Обновить список"
+              title={t('versions_refresh_tip')}
             >
               <RefreshCw size={14} className={loading ? styles.spin : ''} />
             </button>
@@ -218,9 +228,9 @@ export default function Versions({ onSelectVersion, onNavigate }) {
         </div>
 
         {/* Sub-bar: Quick MC Version chips for Fabric/Forge or Snapshot toggle for Vanilla */}
-        {(tab === 'Fabric' || tab === 'Forge') && (
+        {(tab === 'fabric' || tab === 'forge') && (
           <div className={styles.subBar}>
-            <div className={styles.chipsLabel}>Версия Minecraft:</div>
+            <div className={styles.chipsLabel}>{t('versions_mc_ver_label')}</div>
             <div className={styles.chipsScroll}>
               {POPULAR_MC_VERSIONS.map((ver) => (
                 <button
@@ -241,15 +251,15 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                 value={mcVersionForLoader}
                 onChange={(e) => setMcVersionForLoader(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && loadData(e.target.value)}
-                placeholder="Другая..."
+                placeholder={t('versions_custom_ver_placeholder')}
                 className={styles.customVerInput}
-                title="Введите версию Minecraft и нажмите Enter"
+                title={t('versions_custom_ver_tip')}
               />
             </div>
           </div>
         )}
 
-        {tab === 'Vanilla' && (
+        {tab === 'vanilla' && (
           <div className={styles.subBar}>
             <button
               type="button"
@@ -258,11 +268,11 @@ export default function Versions({ onSelectVersion, onNavigate }) {
               }`}
               onClick={() => setShowSnapshots(!showSnapshots)}
             >
-              <span>Показывать снапшоты</span>
+              <span>{t('versions_snapshots_toggle')}</span>
               {showSnapshots && <Check size={12} />}
             </button>
             <span className={styles.counterText}>
-              Найдено версий: {allFilteredVanilla.length}
+              {t('versions_found_count', { count: allFilteredVanilla.length })}
             </span>
           </div>
         )}
@@ -293,27 +303,27 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                 style={{ animationDelay: `${i * 0.06}s` }}
               />
             ))
-          ) : tab === 'Установленные' ? (
+          ) : tab === 'installed' ? (
             filteredLocal.length > 0 ? (
               filteredLocal.map((v) => (
                 <div key={v.id} className={styles.row}>
                   <div className={styles.rowLeft}>
                     <span
                       className={styles.typeDot}
-                      style={{ background: TYPE_COLORS[v.type] || '#38bdf8' }}
+                      style={{ background: TYPE_COLORS[v.type] || '#ffffff' }}
                     />
                     <div className={styles.versionInfoCol}>
                       <span className={styles.versionId}>{v.label || v.id}</span>
                       <span className={styles.versionSubId}>
-                        Папка: {v.id} {v.inheritsFrom ? `(основа: ${v.inheritsFrom})` : ''}
+                        {t('versions_folder_label')} {v.id} {v.inheritsFrom ? `(${t('versions_base_label')} ${v.inheritsFrom})` : ''}
                       </span>
                     </div>
                     <span
                       className={styles.typeBadge}
                       style={{
-                        background: `${TYPE_COLORS[v.type] || '#38bdf8'}22`,
-                        color: TYPE_COLORS[v.type] || '#38bdf8',
-                        borderColor: `${TYPE_COLORS[v.type] || '#38bdf8'}44`,
+                        background: `${TYPE_COLORS[v.type] || '#ffffff'}22`,
+                        color: TYPE_COLORS[v.type] || '#ffffff',
+                        borderColor: `${TYPE_COLORS[v.type] || '#ffffff'}44`,
                       }}
                     >
                       {v.type}
@@ -325,16 +335,16 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                       type="button"
                       className={styles.selectActiveBtn}
                       onClick={() => handleSelect(v)}
-                      title="Выбрать эту версию для игры"
+                      title={t('versions_select_btn')}
                     >
                       <Play size={13} />
-                      <span>Выбрать</span>
+                      <span>{t('versions_select_btn')}</span>
                     </button>
                     <button
                       type="button"
                       className={styles.deleteBtn}
                       onClick={() => handleDelete(v.id)}
-                      title="Удалить версию"
+                      title={t('versions_delete_tip')}
                     >
                       <Trash2 size={13} />
                     </button>
@@ -344,13 +354,11 @@ export default function Versions({ onSelectVersion, onNavigate }) {
             ) : (
               <div className={styles.emptyState}>
                 <Folder size={32} className={styles.emptyIcon} />
-                <p>Установленные версии не найдены</p>
-                <span>
-                  Вы можете скачать версию во вкладках Vanilla/Fabric/Forge или нажать «Папка версий» и закинуть свою сборку.
-                </span>
+                <p>{t('versions_empty_title')}</p>
+                <span>{t('versions_empty_desc')}</span>
               </div>
             )
-          ) : tab === 'Vanilla' ? (
+          ) : tab === 'vanilla' ? (
             <>
               {filteredVanilla.map((v) => {
                 const installed = isLocalInstalled(v.id)
@@ -360,7 +368,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                     <div className={styles.rowLeft}>
                       <span
                         className={styles.typeDot}
-                        style={{ background: TYPE_COLORS[v.type] || '#38bdf8' }}
+                        style={{ background: TYPE_COLORS[v.type] || '#ffffff' }}
                       />
                       <span className={styles.versionId}>{v.id}</span>
                       <span className={styles.versionType}>{v.type}</span>
@@ -379,7 +387,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                           }
                         >
                           <Check size={13} />
-                          <span>Выбрать</span>
+                          <span>{t('versions_select_btn')}</span>
                         </button>
                       ) : (
                         <button
@@ -393,7 +401,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                           ) : (
                             <>
                               <Download size={13} />
-                              <span>Установить</span>
+                              <span>{t('versions_install_btn')}</span>
                             </>
                           )}
                         </button>
@@ -410,9 +418,9 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                     className={styles.loadMoreBtn}
                     onClick={() => setLimitVanilla((prev) => prev + 50)}
                   >
-                    <span>Загрузить ещё (+50)</span>
+                    <span>{t('versions_load_more')}</span>
                     <span className={styles.loadMoreBadge}>
-                      {filteredVanilla.length} из {allFilteredVanilla.length}
+                      {t('versions_of_total', { current: filteredVanilla.length, total: allFilteredVanilla.length })}
                     </span>
                   </button>
                 </div>
@@ -422,11 +430,11 @@ export default function Versions({ onSelectVersion, onNavigate }) {
             loaderVersions.map((v) => {
               const lv = v.loader || v.version
               const targetId =
-                tab === 'Forge'
+                tab === 'forge'
                   ? `forge-${mcVersionForLoader}-${lv}`
                   : `fabric-loader-${lv}-${mcVersionForLoader}`
               const installed = isLocalInstalled(targetId)
-              const instId = `${tab.toLowerCase()}-${mcVersionForLoader}-${lv}`
+              const instId = `${tab}-${mcVersionForLoader}-${lv}`
 
               return (
                 <div key={lv} className={styles.row}>
@@ -438,7 +446,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                       }}
                     />
                     <span className={styles.versionId}>
-                      {tab} {mcVersionForLoader} (Loader {lv})
+                      {tab.toUpperCase()} {mcVersionForLoader} (Loader {lv})
                     </span>
                     {v.stable !== false && <span className={styles.stableBadge}>stable</span>}
                     {v.recommended && <span className={styles.recBadge}>recommended</span>}
@@ -452,20 +460,20 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                         onClick={() =>
                           handleSelect({
                             id: targetId,
-                            label: `${tab} ${mcVersionForLoader} (${lv})`,
-                            type: tab.toLowerCase(),
+                            label: `${tab.toUpperCase()} ${mcVersionForLoader} (${lv})`,
+                            type: tab,
                             loaderVersion: lv,
                           })
                         }
                       >
                         <Check size={13} />
-                        <span>Выбрать</span>
+                        <span>{t('versions_select_btn')}</span>
                       </button>
                     ) : (
                       <button
                         type="button"
                         className={styles.installBtn}
-                        onClick={() => handleInstall({ id: mcVersionForLoader }, tab, lv)}
+                        onClick={() => handleInstall({ id: mcVersionForLoader }, tab === 'forge' ? 'Forge' : 'Fabric', lv)}
                         disabled={installing === instId}
                       >
                         {installing === instId ? (
@@ -473,7 +481,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                         ) : (
                           <>
                             <Download size={13} />
-                            <span>Установить</span>
+                            <span>{t('versions_install_btn')}</span>
                           </>
                         )}
                       </button>
@@ -483,7 +491,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
               )
             })
           ) : (
-            <div className={styles.empty}>Версии не найдены для {mcVersionForLoader}</div>
+            <div className={styles.empty}>{t('versions_none_for_mc', { version: mcVersionForLoader })}</div>
           )}
         </div>
       </div>

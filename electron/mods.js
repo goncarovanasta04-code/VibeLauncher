@@ -17,6 +17,8 @@ function getVersionContentDir(rootDir, versionId, contentType, isolateVersionFol
   let sub = 'mods'
   if (contentType === 'resourcepack' || contentType === 'resourcepacks') sub = 'resourcepacks'
   else if (contentType === 'shader' || contentType === 'shaderpacks') sub = 'shaderpacks'
+  else if (contentType === 'datapack' || contentType === 'datapacks') sub = 'datapacks'
+  else if (contentType === 'modpack' || contentType === 'modpacks') sub = 'modpacks'
 
   const targetDir = path.join(baseDir, sub)
   if (!fs.existsSync(targetDir)) {
@@ -54,7 +56,7 @@ function writeContentManifest(rootDir, versionId, data, isolateVersionFolders = 
 }
 
 /**
- * Search Modrinth for mods, shaders, and resourcepacks
+ * Search Modrinth for mods, modpacks, shaders, resourcepacks, and datapacks
  */
 async function searchModrinth({
   query = '',
@@ -67,19 +69,22 @@ async function searchModrinth({
   try {
     const facets = []
 
-    // Project type facet
-    const pType =
-      type === 'shader' ? 'shader' : type === 'resourcepack' ? 'resourcepack' : 'mod'
+    // Project type facet: mod, modpack, resourcepack, shader, datapack
+    let pType = 'mod'
+    if (type === 'shader') pType = 'shader'
+    else if (type === 'resourcepack') pType = 'resourcepack'
+    else if (type === 'modpack') pType = 'modpack'
+    else if (type === 'datapack') pType = 'datapack'
     facets.push([`project_type:${pType}`])
 
-    // Version filter
+    // Version filter (apply if provided and not searching modpacks that might have their own bundle versioning)
     if (mcVersion && mcVersion.trim()) {
       facets.push([`versions:${mcVersion.trim()}`])
     }
 
-    // Loader filter (ONLY for mods; shaders and resourcepacks do not use loader category filters)
+    // Loader filter (ONLY for mods and modpacks; shaders, datapacks and resourcepacks do not use loader filters)
     if (
-      pType === 'mod' &&
+      (pType === 'mod' || pType === 'modpack') &&
       loader &&
       loader.trim() &&
       loader !== 'all' &&
@@ -121,6 +126,60 @@ async function searchModrinth({
   } catch (err) {
     console.error('[Modrinth Search Error]:', err.message)
     return { ok: false, error: err.message, hits: [] }
+  }
+}
+
+/**
+ * Gets rich project details from Modrinth (full description, gallery, links, metadata)
+ */
+async function getModrinthProjectDetails(slugOrId) {
+  if (!slugOrId || typeof slugOrId !== 'string') {
+    return { ok: false, error: 'Не указан ID или slug проекта' }
+  }
+  try {
+    const res = await axios.get(
+      `https://api.modrinth.com/v2/project/${encodeURIComponent(slugOrId.trim())}`,
+      {
+        headers: { 'User-Agent': 'VibeLauncher/1.0 (contact@vibelauncher.app)' },
+        timeout: 15000,
+      }
+    )
+    const data = res.data
+    return {
+      ok: true,
+      project: {
+        id: data.id,
+        slug: data.slug,
+        title: data.title,
+        description: data.description,
+        body: data.body,
+        icon: data.icon_url,
+        projectType: data.project_type,
+        downloads: data.downloads,
+        followers: data.followers,
+        categories: data.categories || [],
+        additionalCategories: data.additional_categories || [],
+        loaders: data.loaders || [],
+        gameVersions: data.game_versions || [],
+        published: data.published,
+        updated: data.updated,
+        license: data.license ? data.license.name || data.license.id : null,
+        gallery: (data.gallery || []).map((img) => ({
+          url: img.url,
+          title: img.title || '',
+          description: img.description || '',
+          featured: img.featured || false,
+        })),
+        sourceUrl: data.source_url || null,
+        issuesUrl: data.issues_url || null,
+        wikiUrl: data.wiki_url || null,
+        discordUrl: data.discord_url || null,
+        donationUrls: data.donation_urls || [],
+      },
+    }
+  } catch (err) {
+    console.error('[Modrinth Project Details Error]:', err.message)
+    return { ok: false, error: err.message }
   }
 }
 
@@ -399,11 +458,22 @@ function getInstalledContent({ versionId, gameDir, isolateVersionFolders = true 
   }
 }
 
+function isPathWithinGameDir(targetPath, gameDir) {
+  if (!targetPath || typeof targetPath !== 'string') return false
+  const root = path.resolve(gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir())
+  const resolved = path.resolve(targetPath)
+  return resolved.startsWith(root + path.sep) || resolved === root
+}
+
 /**
  * Enables or disables a mod file (.jar <-> .jar.disabled)
  */
-function toggleModFile(filePath) {
+function toggleModFile(filePath, gameDir) {
   try {
+    if (!filePath || typeof filePath !== 'string') return { ok: false, error: 'Неверный путь' }
+    if (!isPathWithinGameDir(filePath, gameDir)) {
+      return { ok: false, error: 'Доступ запрещен: путь выходит за пределы папки игры' }
+    }
     if (!fs.existsSync(filePath)) return { ok: false, error: 'Файл не найден' }
 
     let newPath
@@ -425,6 +495,10 @@ function toggleModFile(filePath) {
  */
 function deleteModFile(filePath, versionId, gameDir, isolateVersionFolders = true) {
   try {
+    if (!filePath || typeof filePath !== 'string') return { ok: false, error: 'Неверный путь' }
+    if (!isPathWithinGameDir(filePath, gameDir)) {
+      return { ok: false, error: 'Доступ запрещен: путь выходит за пределы папки игры' }
+    }
     if (fs.existsSync(filePath)) {
       const fileName = path.basename(filePath)
       fs.unlinkSync(filePath)
@@ -461,6 +535,7 @@ function openContentFolder({ versionId, type = 'mods', gameDir, isolateVersionFo
 
 module.exports = {
   searchModrinth,
+  getModrinthProjectDetails,
   getModrinthProjectVersions,
   installModFile,
   getInstalledContent,

@@ -8,6 +8,7 @@ import ModsModal from './components/ModsModal'
 import ChangelogModal from './components/ChangelogModal'
 import UpdateModal from './components/UpdateModal'
 import ThemesModal from './components/ThemesModal'
+import WelcomeModal from './components/WelcomeModal'
 import AppSplashScreen from './components/AppSplashScreen'
 import Monochrome3DBackground from './components/Monochrome3DBackground'
 import { applyTheme, getCurrentTheme } from './utils/themeManager'
@@ -15,9 +16,11 @@ import LiquidGlassShader from './components/LiquidGlassShader'
 import bgVideo from './assets/bg.mp4'
 import bgImage from './assets/bg.jpg'
 import packageInfo from '../package.json'
+import { useLanguage } from './context/LanguageContext'
 import styles from './App.module.css'
 
 export default function App() {
+  const { t } = useLanguage()
   const [appReady, setAppReady] = useState(false)
   const [profile, setProfile] = useState(null)
   const [accounts, setAccounts] = useState([])
@@ -25,6 +28,7 @@ export default function App() {
   const [localVersions, setLocalVersions] = useState([])
   const [showLogin, setShowLogin] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [showVersionsManager, setShowVersionsManager] = useState(false)
   const [showModsModal, setShowModsModal] = useState(false)
   const [showChangelogModal, setShowChangelogModal] = useState(false)
@@ -135,6 +139,15 @@ export default function App() {
       await loadAccountsAndProfile()
 
       await refreshLocalVersions()
+
+      // Check first-time onboarding tutorial
+      try {
+        const onboardingDone = await window.vibe?.storeGet('settings.onboardingCompleted')
+        const lsDone = localStorage.getItem('vibelauncher_onboarding_done')
+        if (!onboardingDone && !lsDone) {
+          setShowWelcomeModal(true)
+        }
+      } catch (e) {}
 
       // Silent background check for updates after 3s
       setTimeout(async () => {
@@ -362,6 +375,18 @@ export default function App() {
             setShowSettings(false)
             checkSettings()
           }}
+          onOpenWelcome={() => {
+            setShowSettings(false)
+            setShowWelcomeModal(true)
+          }}
+        />
+      )}
+
+      {/* Welcome & Onboarding Tutorial Modal */}
+      {showWelcomeModal && (
+        <WelcomeModal
+          onClose={() => setShowWelcomeModal(false)}
+          onOpenLogin={() => setShowLogin(true)}
         />
       )}
 
@@ -384,7 +409,7 @@ export default function App() {
         <div className={styles.modalOverlay} onClick={() => setShowVersionsManager(false)}>
           <div className={`${styles.versionsModal} glass`} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>Менеджер версий</h3>
+              <h3>{t('versions_manager_title')}</h3>
               <button
                 type="button"
                 className={styles.modalCloseBtn}
@@ -418,7 +443,7 @@ export default function App() {
       <div
         className={styles.versionWatermark}
         onClick={() => setShowChangelogModal(true)}
-        title={`Нажмите, чтобы открыть список изменений (v${packageInfo.version})`}
+        title={t('version_watermark_tip', { version: packageInfo.version })}
       >
         <span className={styles.versionDot} />
         <span className={styles.versionText}>v{packageInfo.version} • VibeLauncher</span>

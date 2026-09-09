@@ -274,6 +274,114 @@ export const THEMES = [
     iconKey: 'Ghost',
     previewGradient: 'linear-gradient(135deg, #0d9488 0%, #115e59 50%, #042f2e 100%)',
   },
+  {
+    id: 'onyx-stealth',
+    name: 'Onyx Stealth',
+    description: 'Глубокий матовый черный оникс, строгие графитовые контуры и платиновый акцент',
+    accent: '#f8fafc',
+    accentSec: '#cbd5e1',
+    accentIce: '#ffffff',
+    glow: 'rgba(255, 255, 255, 0.15)',
+    bgTint: 'rgba(11, 12, 14, 0.95)',
+    borderGlow: 'rgba(255, 255, 255, 0.25)',
+    isPlainBg: true,
+    bgColor: '#08090b',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Матовый оникс',
+    iconKey: 'Moon',
+    previewGradient: 'linear-gradient(135deg, #08090b 0%, #121418 50%, #1a1d24 100%)',
+  },
+  {
+    id: 'titanium-gray',
+    name: 'Titanium Slate',
+    description: 'Индустриальный титан и холодный графит. Премиальный нейтральный серый интерфейс',
+    accent: '#e2e8f0',
+    accentSec: '#94a3b8',
+    accentIce: '#f8fafc',
+    glow: 'rgba(226, 232, 240, 0.15)',
+    bgTint: 'rgba(15, 17, 21, 0.95)',
+    borderGlow: 'rgba(255, 255, 255, 0.2)',
+    isPlainBg: true,
+    bgColor: '#0f1115',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Титан и сланец',
+    iconKey: 'Layers',
+    previewGradient: 'linear-gradient(135deg, #0f1115 0%, #181b22 50%, #222630 100%)',
+  },
+  {
+    id: 'carbon-grid',
+    name: 'Carbon Grid',
+    description: 'Текстурированный карбоновый паттерн с минималистичной геометрией и монохромом',
+    accent: '#f1f5f9',
+    accentSec: '#64748b',
+    accentIce: '#ffffff',
+    glow: 'rgba(255, 255, 255, 0.12)',
+    bgTint: 'rgba(12, 14, 18, 0.95)',
+    borderGlow: 'rgba(255, 255, 255, 0.18)',
+    isPlainBg: true,
+    bgColor: '#0b0d11',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Карбоновая сетка',
+    iconKey: 'Box',
+    previewGradient: 'linear-gradient(135deg, #0a0b0e 0%, #15181f 50%, #1f232c 100%)',
+  },
+  {
+    id: 'deep-void',
+    name: 'Deep Void',
+    description: 'Абсолютная тьма бездны с ультра-тонкими границами и максимальной концентрацией',
+    accent: '#e2e8f0',
+    accentSec: '#475569',
+    accentIce: '#cbd5e1',
+    glow: 'rgba(255, 255, 255, 0.1)',
+    bgTint: 'rgba(5, 6, 8, 0.98)',
+    borderGlow: 'rgba(255, 255, 255, 0.15)',
+    isPlainBg: true,
+    bgColor: '#050608',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Темная бездна',
+    iconKey: 'Moon',
+    previewGradient: 'linear-gradient(135deg, #040507 0%, #0a0c10 50%, #12151b 100%)',
+  },
+  {
+    id: 'crimson-noir',
+    name: 'Crimson Noir',
+    description: 'Строгий угольный фон с благородным приглушенным рубиновым акцентом',
+    accent: '#f43f5e',
+    accentSec: '#be123c',
+    accentIce: '#fda4af',
+    glow: 'rgba(244, 63, 94, 0.25)',
+    bgTint: 'rgba(16, 12, 14, 0.95)',
+    borderGlow: 'rgba(244, 63, 94, 0.35)',
+    isPlainBg: true,
+    bgColor: '#0e0b0d',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Угольный нуар',
+    iconKey: 'Flame',
+    previewGradient: 'linear-gradient(135deg, #0e0a0c 0%, #1c1216 50%, #2d141d 100%)',
+  },
+  {
+    id: 'studio-slate',
+    name: 'Studio Slate',
+    description: 'Профессиональный студийный темно-серый интерьер для долгой комфортной игры',
+    accent: '#38bdf8',
+    accentSec: '#64748b',
+    accentIce: '#e0f2fe',
+    glow: 'rgba(56, 189, 248, 0.2)',
+    bgTint: 'rgba(15, 18, 24, 0.95)',
+    borderGlow: 'rgba(56, 189, 248, 0.3)',
+    isPlainBg: true,
+    bgColor: '#101319',
+    isVideo: false,
+    category: 'minimal',
+    tag: 'Студийный сланец',
+    iconKey: 'Layers',
+    previewGradient: 'linear-gradient(135deg, #0e1117 0%, #161a22 50%, #1e232e 100%)',
+  },
 ]
 
 export function applyTheme(themeId) {
@@ -288,11 +396,11 @@ export function applyTheme(themeId) {
   root.style.setProperty('--theme-bg-tint', theme.bgTint)
   root.style.setProperty('--glass-border-active', theme.borderGlow)
 
-  // Handle Clean Light mode vs Dark mode
+  // Handle Clean Light mode vs Neutral Dark mode (Anti-AI Slop)
   if (theme.isLight) {
     root.setAttribute('data-theme', 'light')
     root.style.setProperty('--bg-dark', '#f8fafc')
-    root.style.setProperty('--bg-glass', 'rgba(255, 255, 255, 0.88)')
+    root.style.setProperty('--bg-glass', 'rgba(255, 255, 255, 0.94)')
     root.style.setProperty('--bg-glass-hover', 'rgba(255, 255, 255, 0.98)')
     root.style.setProperty('--bg-glass-card', 'rgba(255, 255, 255, 0.92)')
     root.style.setProperty('--text-main', '#0f172a')
@@ -301,20 +409,20 @@ export function applyTheme(themeId) {
     root.style.setProperty('--glass-border', 'rgba(15, 23, 42, 0.12)')
     root.style.setProperty('--glass-border-hover', 'rgba(15, 23, 42, 0.28)')
     root.style.setProperty('--glass-highlight', 'inset 0 1px 1px 0 rgba(255, 255, 255, 1)')
-    root.style.setProperty('--glass-shadow', '0 20px 45px -10px rgba(0, 0, 0, 0.12), 0 8px 20px -5px rgba(0, 0, 0, 0.08)')
+    root.style.setProperty('--glass-shadow', '0 16px 36px -8px rgba(0, 0, 0, 0.08)')
   } else {
     root.removeAttribute('data-theme')
-    root.style.setProperty('--bg-dark', '#040814')
-    root.style.setProperty('--bg-glass', 'rgba(12, 20, 38, 0.55)')
-    root.style.setProperty('--bg-glass-hover', 'rgba(18, 30, 56, 0.65)')
-    root.style.setProperty('--bg-glass-card', 'rgba(15, 25, 48, 0.5)')
+    root.style.setProperty('--bg-dark', '#0a0c10')
+    root.style.setProperty('--bg-glass', 'rgba(17, 20, 26, 0.88)')
+    root.style.setProperty('--bg-glass-hover', 'rgba(26, 30, 39, 0.95)')
+    root.style.setProperty('--bg-glass-card', 'rgba(15, 18, 24, 0.85)')
     root.style.setProperty('--text-main', '#ffffff')
     root.style.setProperty('--text-secondary', 'rgba(241, 245, 249, 0.85)')
     root.style.setProperty('--text-muted', 'rgba(148, 163, 184, 0.75)')
-    root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.15)')
-    root.style.setProperty('--glass-border-hover', 'rgba(255, 255, 255, 0.35)')
-    root.style.setProperty('--glass-highlight', 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)')
-    root.style.setProperty('--glass-shadow', '0 20px 50px -10px rgba(0, 0, 0, 0.65), 0 8px 20px -5px rgba(0, 0, 0, 0.4)')
+    root.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.08)')
+    root.style.setProperty('--glass-border-hover', 'rgba(255, 255, 255, 0.18)')
+    root.style.setProperty('--glass-highlight', 'inset 0 1px 1px 0 rgba(255, 255, 255, 0.15)')
+    root.style.setProperty('--glass-shadow', '0 16px 40px rgba(0, 0, 0, 0.65)')
   }
 
   // Dispatch custom event for immediate dynamic background update in App.jsx

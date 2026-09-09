@@ -1,6 +1,6 @@
 {
   "name": "vibelauncher",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "VibeLauncher - Minecraft Launcher with Ely.by auth",
   "author": "VibeLauncher",
   "main": "electron/main.js",

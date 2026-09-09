@@ -3,13 +3,25 @@ const path = require('path')
 const os = require('os')
 const https = require('https')
 const http = require('http')
-const { execSync, spawn } = require('child_process')
+const { spawnSync, spawn } = require('child_process')
 
-// Direct verified Eclipse Temurin (Adoptium) portable JDK downloads for Windows x64
-const ADOPTIUM_URLS = {
-  8: 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u442-b06/OpenJDK8U-jdk_x64_windows_hotspot_8u442b06.zip',
-  17: 'https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.14%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.14_7.zip',
-  21: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.zip',
+// Direct verified Eclipse Temurin (Adoptium) & Azul Zulu OpenJDK portable JDK download mirrors for Windows x64
+const JAVA_MIRRORS = {
+  8: [
+    'https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jdk/hotspot/normal/eclipse',
+    'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u442-b06/OpenJDK8U-jdk_x64_windows_hotspot_8u442b06.zip',
+    'https://cdn.azul.com/zulu/bin/zulu8.84.0.15-ca-jdk8.0.442-win_x64.zip',
+  ],
+  17: [
+    'https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse',
+    'https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.14%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.14_7.zip',
+    'https://cdn.azul.com/zulu/bin/zulu17.56.15-ca-jdk17.0.14-win_x64.zip',
+  ],
+  21: [
+    'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse',
+    'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_windows_hotspot_21.0.6_7.zip',
+    'https://cdn.azul.com/zulu/bin/zulu21.40.17-ca-jdk21.0.6-win_x64.zip',
+  ],
 }
 
 /**
@@ -76,15 +88,18 @@ function getRequiredJavaVersion(mcVersion, versionData = null) {
 }
 
 /**
- * Checks a java.exe / javaw.exe executable and returns { major, is64Bit, valid: true }, or null if failed.
+ * Checks a java.exe / javaw.exe executable safely without shell invocation.
+ * Returns { major, is64Bit, raw: verStr, valid: true }, or null if failed.
  */
 function probeJavaInfo(javaExePath) {
-  if (!javaExePath || !fs.existsSync(javaExePath)) return null
+  if (!javaExePath || typeof javaExePath !== 'string' || !fs.existsSync(javaExePath)) return null
   try {
-    const out = execSync(`"${javaExePath}" -version 2>&1`, {
+    const res = spawnSync(javaExePath, ['-version'], {
       encoding: 'utf8',
-      timeout: 3500,
+      timeout: 4000,
+      windowsHide: true,
     })
+    const out = (res.stderr || '') + '\n' + (res.stdout || '')
     const is64Bit = /64-Bit|x86_64|amd64/i.test(out)
     const match = out.match(/version\s*["']?([0-9._]+)/i)
     if (match && match[1]) {
@@ -118,7 +133,6 @@ function discoverLocalJavaInstallations() {
     if (!p || seenPaths.has(p) || !fs.existsSync(p)) return
     seenPaths.add(p)
     const info = probeJavaInfo(p)
-    // Exclude 32-bit Java because 32-bit JVM crashes with 'Could not create JVM' on normal RAM
     if (info && info.major && info.is64Bit) {
       discovered.push({ path: p, major: info.major, is64Bit: true })
     }
@@ -133,27 +147,73 @@ function discoverLocalJavaInstallations() {
     'C:\\Program Files\\Amazon Corretto',
     path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft', 'runtime'),
     path.join(os.homedir(), 'AppData', 'Roaming', '.minecraft', 'runtimes'),
+    path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Eclipse Adoptium'),
+    path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'Java'),
+    // Official Mojang Launcher runtime on Windows
+    path.join(
+      os.homedir(),
+      'AppData',
+      'Local',
+      'Packages',
+      'Microsoft.4297127D64EC6_8wekyb3d8bbwe',
+      'LocalCache',
+      'Local',
+      'runtime'
+    ),
   ]
 
   if (process.env.JAVA_HOME) {
     searchRoots.unshift(process.env.JAVA_HOME)
   }
 
+  // 1. Check direct searchRoots and immediate subfolders
   for (const root of searchRoots) {
     if (!fs.existsSync(root)) continue
 
-    addIfValid(path.join(root, 'bin', 'javaw.exe'))
     addIfValid(path.join(root, 'bin', 'java.exe'))
+    addIfValid(path.join(root, 'bin', 'javaw.exe'))
 
     try {
       const subdirs = fs.readdirSync(root)
       for (const sub of subdirs) {
         const subPath = path.join(root, sub)
-        addIfValid(path.join(subPath, 'bin', 'javaw.exe'))
-        addIfValid(path.join(subPath, 'bin', 'java.exe'))
+        try {
+          if (fs.statSync(subPath).isDirectory()) {
+            addIfValid(path.join(subPath, 'bin', 'java.exe'))
+            addIfValid(path.join(subPath, 'bin', 'javaw.exe'))
+
+            // Second level check for e.g. java-runtime-gamma/windows-x64/java-runtime-gamma/bin/java.exe
+            const innerSubs = fs.readdirSync(subPath)
+            for (const inSub of innerSubs) {
+              const inPath = path.join(subPath, inSub)
+              if (fs.existsSync(inPath) && fs.statSync(inPath).isDirectory()) {
+                addIfValid(path.join(inPath, 'bin', 'java.exe'))
+                addIfValid(path.join(inPath, 'bin', 'javaw.exe'))
+              }
+            }
+          }
+        } catch (e) {}
       }
     } catch (e) {}
   }
+
+  // 2. Query where.exe java (system PATH) safely
+  try {
+    const whereRes = spawnSync('where.exe', ['java'], {
+      encoding: 'utf8',
+      timeout: 3000,
+      windowsHide: true,
+    })
+    if (whereRes.stdout) {
+      const lines = whereRes.stdout.split(/\r?\n/)
+      for (const l of lines) {
+        const trimmed = l.trim()
+        if (trimmed && fs.existsSync(trimmed)) {
+          addIfValid(trimmed)
+        }
+      }
+    }
+  } catch (e) {}
 
   return discovered
 }
@@ -161,18 +221,18 @@ function discoverLocalJavaInstallations() {
 /**
  * Downloads a file with redirect following and progress reporting.
  */
-function downloadFile(url, destPath, onProgress) {
+function downloadFile(url, destPath, onProgress, maxRedirects = 8) {
   return new Promise((resolve, reject) => {
     let activeTimer = null
+    let redirectCount = 0
 
     const resetTimer = (req) => {
       if (activeTimer) clearTimeout(activeTimer)
-      // 2-minute inactivity timeout (if no bytes received for 120s)
       activeTimer = setTimeout(() => {
         req.destroy()
         try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath) } catch (e) {}
-        reject(new Error('Download timeout: network inactive for 120s'))
-      }, 120000)
+        reject(new Error('Таймаут скачивания: соединение неактивно 60 сек'))
+      }, 60000)
     }
 
     const cleanup = () => {
@@ -183,6 +243,11 @@ function downloadFile(url, destPath, onProgress) {
     try { appVer = require('../package.json').version || '1.4.0' } catch (e) {}
 
     const makeRequest = (curUrl) => {
+      if (redirectCount++ > maxRedirects) {
+        cleanup()
+        return reject(new Error('Слишком много перенаправлений (redirect loop)'))
+      }
+
       const client = curUrl.startsWith('https:') ? https : http
       const options = {
         headers: {
@@ -190,18 +255,26 @@ function downloadFile(url, destPath, onProgress) {
           Accept: '*/*',
         },
       }
+
       const req = client.get(curUrl, options, (res) => {
         resetTimer(req)
 
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           cleanup()
-          return makeRequest(res.headers.location)
+          res.resume() // Drain stream to release socket
+          try {
+            const resolvedLoc = new URL(res.headers.location, curUrl).href
+            return makeRequest(resolvedLoc)
+          } catch (urlErr) {
+            return reject(new Error(`Некорректный URL перенаправления: ${res.headers.location}`))
+          }
         }
 
         if (res.statusCode !== 200) {
           cleanup()
+          res.resume()
           try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath) } catch (e) {}
-          return reject(new Error(`Download failed with HTTP ${res.statusCode}`))
+          return reject(new Error(`Сервер вернул HTTP ${res.statusCode}`))
         }
 
         const totalBytes = parseInt(res.headers['content-length'] || '0', 10)
@@ -292,12 +365,12 @@ async function extractZip(zipPath, outDir) {
 }
 
 /**
- * Automatically downloads and installs a portable OpenJDK runtime.
+ * Automatically downloads and installs a portable OpenJDK runtime with fallback mirror support.
  */
 async function autoDownloadJava(majorVersion, rootDir, onProgress) {
-  const url = ADOPTIUM_URLS[majorVersion]
-  if (!url) {
-    throw new Error(`No portable download URL available for Java ${majorVersion}`)
+  const mirrors = JAVA_MIRRORS[majorVersion]
+  if (!mirrors || mirrors.length === 0) {
+    throw new Error(`Нет доступных ссылок для загрузки среды Java ${majorVersion}`)
   }
 
   const runtimesDir = path.join(rootDir, 'runtimes')
@@ -306,33 +379,64 @@ async function autoDownloadJava(majorVersion, rootDir, onProgress) {
 
   fs.mkdirSync(runtimesDir, { recursive: true })
 
-  if (onProgress) {
-    onProgress({
-      type: 'status',
-      text: `Загрузка официальной Java ${majorVersion} (OpenJDK Temurin)...`,
-    })
+  let lastError = null
+  let downloadedSuccessfully = false
+
+  for (let i = 0; i < mirrors.length; i++) {
+    const url = mirrors[i]
+    try {
+      if (onProgress) {
+        onProgress({
+          type: 'status',
+          text: `Загрузка Java ${majorVersion} (зеркало ${i + 1}/${mirrors.length})...`,
+        })
+      }
+
+      console.log(`[Java] Attempting download of Java ${majorVersion} from mirror ${i + 1}: ${url}`)
+      await downloadFile(url, zipPath, (info) => {
+        if (onProgress) {
+          onProgress({
+            type: 'progress',
+            data: {
+              task: `Java ${majorVersion} (${info.current} МБ / ${info.total} МБ)`,
+              percent: info.percent,
+            },
+          })
+        }
+      })
+
+      // Check downloaded zip size
+      if (fs.existsSync(zipPath) && fs.statSync(zipPath).size > 20000000) {
+        downloadedSuccessfully = true
+        break
+      } else {
+        throw new Error('Скачанный архив Java неполный или поврежден')
+      }
+    } catch (err) {
+      console.warn(`[Java] Mirror ${i + 1} failed:`, err.message)
+      lastError = err
+      try { if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath) } catch (e) {}
+    }
   }
 
-  // 1. Download
-  await downloadFile(url, zipPath, (info) => {
-    if (onProgress) {
-      onProgress({
-        type: 'progress',
-        data: {
-          task: `Java ${majorVersion} (${info.current} МБ / ${info.total} МБ)`,
-          percent: info.percent,
-        },
-      })
-    }
-  })
+  if (!downloadedSuccessfully) {
+    throw new Error(`Не удалось скачать Java ${majorVersion} ни с одного зеркала: ${lastError?.message || 'Сбой сети'}`)
+  }
 
   // 2. Extract
   if (onProgress) {
     onProgress({
       type: 'status',
-      text: `Распаковка Java ${majorVersion}...`,
+      text: `Распаковка среды Java ${majorVersion}...`,
     })
   }
+
+  // Clean existing targetDir to prevent mixed / broken versions
+  try {
+    if (fs.existsSync(targetDir)) {
+      fs.rmSync(targetDir, { recursive: true, force: true })
+    }
+  } catch (e) {}
 
   await extractZip(zipPath, targetDir)
 
@@ -346,15 +450,15 @@ async function autoDownloadJava(majorVersion, rootDir, onProgress) {
     return extracted
   }
 
-  throw new Error(`Could not find java.exe in extracted directory ${targetDir}`)
+  throw new Error(`Не удалось найти java.exe в распакованной папке ${targetDir}`)
 }
 
 function findJavaInDirectory(dir) {
   if (!fs.existsSync(dir)) return null
-  const javaw = path.join(dir, 'bin', 'javaw.exe')
   const java = path.join(dir, 'bin', 'java.exe')
-  if (fs.existsSync(javaw)) return javaw
+  const javaw = path.join(dir, 'bin', 'javaw.exe')
   if (fs.existsSync(java)) return java
+  if (fs.existsSync(javaw)) return javaw
 
   try {
     const subs = fs.readdirSync(dir)
@@ -410,7 +514,7 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
     return exactMatch.path
   }
 
-  // 4. If required is 21 or 8 or 17 and not found on system: automatically download portable Temurin JDK
+  // 4. Automatically download portable Temurin/Zulu OpenJDK with mirrors
   if (reqMajor === 21 || reqMajor === 8 || reqMajor === 17) {
     try {
       console.log(`[Java] Downloading required Java ${reqMajor} for Minecraft ${mcVersion}...`)
@@ -421,22 +525,30 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
     }
   }
 
-  // 5. Safe Fallbacks: NEVER use Java 17 for Java 21, and NEVER use Java 17+ for Java 8
+  // 5. Safe Fallbacks:
+  // NEVER use Java 17 for Java 21 (1.20.5+ strictly fails)
+  // NEVER use Java 17+ for Java 8 (<= 1.16.5 strictly fails)
   if (reqMajor === 21) {
-    // If Java 21 is strictly required (1.20.5+ / 1.21+), try any runtime >= 21 and <= 24
     const java21Plus = localList.find((item) => item.major >= 21 && item.major <= 24)
     if (java21Plus) return java21Plus.path
   } else if (reqMajor === 8) {
-    // If Java 8 is required (1.16.5 and older), find any Java 8 installation
     const java8 = localList.find((item) => item.major === 8)
     if (java8) return java8.path
   } else {
-    // For 1.17 - 1.20.4, Java 17 or 21 are both compatible
     const safeFallback = localList.find((item) => item.major <= 21 && item.major >= 17)
     if (safeFallback) return safeFallback.path
   }
 
-  return 'java'
+  // If no compatible Java could be found or downloaded, throw an informative error
+  // instead of blindly running 'java' which might be the wrong version and crash.
+  const sysJava = probeJavaInfo('java')
+  if (sysJava && sysJava.major === reqMajor) {
+    return 'java'
+  }
+
+  throw new Error(
+    `Для запуска Minecraft ${mcVersion} требуется Java ${reqMajor} (x64), но совместимая версия не найдена. Попробуйте установить Java ${reqMajor} или перезапустить лаунчер для повторной автозагрузки.`
+  )
 }
 
 module.exports = {

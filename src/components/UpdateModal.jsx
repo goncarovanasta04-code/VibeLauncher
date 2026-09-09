@@ -10,8 +10,10 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import styles from './UpdateModal.module.css'
+import { useLanguage } from '../context/LanguageContext'
 
 export default function UpdateModal({ updateInfo, onClose }) {
+  const { t } = useLanguage()
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [downloadStats, setDownloadStats] = useState({ transferred: 0, total: 0, speed: 0 })
@@ -54,11 +56,11 @@ export default function UpdateModal({ updateInfo, onClose }) {
         }
       } else {
         setDownloading(false)
-        setError(res?.error || 'Не удалось скачать обновление')
+        setError(res?.error || t('update_failed'))
       }
     } catch (err) {
       setDownloading(false)
-      setError(err?.message || 'Ошибка сети при скачивании')
+      setError(err?.message || t('error'))
     }
   }
 
@@ -66,10 +68,10 @@ export default function UpdateModal({ updateInfo, onClose }) {
     try {
       const res = await window.vibe?.installUpdate()
       if (!res?.ok) {
-        setError(res?.error || 'Не удалось запустить установщик')
+        setError(res?.error || t('error'))
       }
     } catch (err) {
-      setError(err?.message || 'Ошибка запуска установщика')
+      setError(err?.message || t('error'))
     }
   }
 
@@ -95,11 +97,11 @@ export default function UpdateModal({ updateInfo, onClose }) {
               <Sparkles size={18} />
             </div>
             <div>
-              <h2 className={styles.title}>Доступно обновление</h2>
-              <span className={styles.subtitle}>Новая версия лаунчера готова к загрузке</span>
+              <h2 className={styles.title}>{t('update_title')}</h2>
+              <span className={styles.subtitle}>{t('update_subtitle')}</span>
             </div>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} title="Закрыть">
+          <button type="button" className={styles.closeBtn} onClick={onClose} title={t('close')}>
             <X size={16} />
           </button>
         </div>
@@ -113,14 +115,14 @@ export default function UpdateModal({ updateInfo, onClose }) {
               <ArrowRight size={16} className={styles.arrowIcon} />
               <div className={styles.versionBadgeNew}>v{updateInfo?.latestVersion || '1.1.0'}</div>
             </div>
-            <span className={styles.bannerTag}>Свежий релиз</span>
+            <span className={styles.bannerTag}>{t('update_tag_fresh')}</span>
           </div>
 
           {/* Release Notes */}
           <div className={styles.releaseBox}>
-            <h4 className={styles.releaseBoxTitle}>Что нового:</h4>
+            <h4 className={styles.releaseBoxTitle}>{t('update_whats_new_title')}</h4>
             <div className={styles.releaseText}>
-              {updateInfo?.releaseNotes || 'Улучшения стабильности, оптимизация и исправления ошибок.'}
+              {updateInfo?.releaseNotes || t('update_default_notes')}
             </div>
           </div>
 
@@ -128,7 +130,7 @@ export default function UpdateModal({ updateInfo, onClose }) {
           {downloading && (
             <div className={styles.progressContainer}>
               <div className={styles.progressHeader}>
-                <span className={styles.progressLabel}>Загрузка установщика...</span>
+                <span className={styles.progressLabel}>{t('update_downloading_installer')}</span>
                 <span className={styles.progressPercent}>{progress}%</span>
               </div>
               <div className={styles.progressBarTrack}>
@@ -136,7 +138,7 @@ export default function UpdateModal({ updateInfo, onClose }) {
               </div>
               <div className={styles.progressMeta}>
                 <span>
-                  {formatBytes(downloadStats.transferred)} из {formatBytes(downloadStats.total)}
+                  {formatBytes(downloadStats.transferred)} {t('update_of')} {formatBytes(downloadStats.total)}
                 </span>
                 <span>{formatSpeed(downloadStats.speed)}</span>
               </div>
@@ -148,10 +150,8 @@ export default function UpdateModal({ updateInfo, onClose }) {
             <div className={styles.completeBox}>
               <CheckCircle2 size={20} className={styles.completeIcon} />
               <div>
-                <h5 className={styles.completeTitle}>Установщик успешно скачан!</h5>
-                <p className={styles.completeDesc}>
-                  Нажмите кнопку ниже, чтобы запустить установку обновления и перезапустить лаунчер.
-                </p>
+                <h5 className={styles.completeTitle}>{t('update_download_complete')}</h5>
+                <p className={styles.completeDesc}>{t('update_download_desc')}</p>
               </div>
             </div>
           )}
@@ -168,27 +168,27 @@ export default function UpdateModal({ updateInfo, onClose }) {
         {/* Footer Actions */}
         <div className={styles.footer}>
           <button type="button" className={styles.laterBtn} onClick={onClose}>
-            Позже
+            {t('update_later_btn')}
           </button>
 
           {!downloading && !downloadComplete && (
             <button type="button" className={styles.updateBtn} onClick={handleStartDownload}>
               <Download size={15} />
-              <span>Обновить лаунчер</span>
+              <span>{t('update_download_launcher')}</span>
             </button>
           )}
 
           {downloading && (
             <button type="button" className={styles.updateBtn} disabled>
               <RefreshCw size={15} className={styles.spin} />
-              <span>Скачивание ({progress}%)...</span>
+              <span>{t('update_downloading_progress', { pct: progress })}</span>
             </button>
           )}
 
           {downloadComplete && (
             <button type="button" className={styles.installBtn} onClick={handleInstall}>
               <CheckCircle2 size={16} />
-              <span>Установить и перезапустить</span>
+              <span>{t('update_install_restart')}</span>
             </button>
           )}
         </div>

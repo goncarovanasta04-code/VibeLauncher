@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   X,
-  LogIn,
   User,
   Lock,
   Eye,
@@ -12,37 +11,26 @@ import {
   Gamepad2,
   CheckCircle2,
   Dices,
-  Sparkles,
-  Award,
 } from 'lucide-react'
 import styles from './LoginModal.module.css'
 import { generateOfflineUUID } from '../utils/uuid'
-
-const TABS = [
-  { id: 'offline', label: 'Офлайн', badge: 'Бесплатно' },
-  { id: 'elyby', label: 'Ely.by', badge: 'Скины' },
-  { id: 'microsoft', label: 'Microsoft', badge: 'Лицензия' },
-]
+import { useLanguage } from '../context/LanguageContext'
 
 const COOL_NICKS = [
-  'VibeMaster',
+  'Steve',
+  'Alex',
+  'ShadowPro',
+  'VibePlayer',
+  'CyberMiner',
   'PixelKnight',
-  'CyberCrafter',
-  'ShadowPlay',
   'FrostByte',
-  'HyperNova',
   'EnderStorm',
-  'StarCreeper',
-  'TurboSteve',
-  'GlitchFox',
   'NeonCrafter',
   'QuantumCraft',
-  'AeroStrike',
-  'AquaPlayer',
-  'ApexMiner',
 ]
 
 export default function LoginModal({ onClose, onLogin }) {
+  const { t } = useLanguage()
   const [tab, setTab] = useState('offline')
 
   // Ely.by fields
@@ -71,10 +59,10 @@ export default function LoginModal({ onClose, onLogin }) {
       if (res?.ok) {
         onLogin(res)
       } else {
-        setError(res?.error || 'Не удалось выполнить вход через Microsoft')
+        setError(res?.error || t('microsoft_error'))
       }
     } catch (err) {
-      setError('Ошибка соединения: ' + err.message)
+      setError(err.message || t('error'))
     }
     setLoading(false)
   }
@@ -83,11 +71,11 @@ export default function LoginModal({ onClose, onLogin }) {
     if (e) e.preventDefault()
     const u = elyUser.trim()
     if (!u) {
-      setError('Введите логин или email от Ely.by')
+      setError(t('elyby_empty_user'))
       return
     }
     if (!elyPass) {
-      setError('Введите пароль')
+      setError(t('elyby_empty_pass'))
       return
     }
 
@@ -102,10 +90,10 @@ export default function LoginModal({ onClose, onLogin }) {
       if (res?.ok) {
         onLogin(res)
       } else {
-        setError(res?.error || 'Неверный логин или пароль')
+        setError(res?.error || t('elyby_auth_error'))
       }
     } catch (err) {
-      setError(err.message || 'Ошибка соединения с сервером')
+      setError(err.message || t('error'))
     }
     setLoading(false)
   }
@@ -114,11 +102,11 @@ export default function LoginModal({ onClose, onLogin }) {
     if (e) e.preventDefault()
     const name = offlineNick.trim()
     if (!name || name.length < 1) {
-      setError('Введите никнейм')
+      setError(t('offline_nick_empty'))
       return
     }
     if (name.length > 24) {
-      setError('Никнейм: максимум 24 символа')
+      setError(t('offline_nick_long'))
       return
     }
 
@@ -134,89 +122,89 @@ export default function LoginModal({ onClose, onLogin }) {
         authType: 'offline',
       })
     } catch (err) {
-      setError('Ошибка генерации UUID: ' + err.message)
+      setError(err.message)
     }
   }
 
   const previewNick = offlineNick.trim() || 'Steve'
 
+  const TABS = [
+    { id: 'offline', label: t('tab_offline'), icon: User },
+    { id: 'elyby', label: t('tab_elyby'), icon: ShieldCheck },
+    { id: 'microsoft', label: t('tab_microsoft'), icon: Gamepad2 },
+  ]
+
   return (
     <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`${styles.modal} glass`}>
+      <div className={styles.modal}>
         {/* Close Button */}
-        <button className={styles.closeBtn} onClick={onClose} title="Закрыть">
-          <X size={16} />
+        <button className={styles.closeBtn} onClick={onClose} title={t('close')}>
+          <X size={15} />
         </button>
 
         {/* Modal Header */}
         <div className={styles.header}>
-          <h2 className={styles.title}>Вход в аккаунт</h2>
-          <p className={styles.subtitle}>Выберите способ авторизации для игры</p>
+          <h2 className={styles.title}>{t('login_title')}</h2>
+          <p className={styles.subtitle}>{t('login_subtitle')}</p>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Segmented Tab Switcher */}
         <div className={styles.tabs}>
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`${styles.tab} ${styles['tabBtn_' + t.id]} ${tab === t.id ? styles.tabActive : ''}`}
-              onClick={() => {
-                setTab(t.id)
-                setError('')
-              }}
-            >
-              <div className={styles.tabIconWrap}>
-                {t.id === 'offline' && <User size={15} />}
-                {t.id === 'elyby' && <ShieldCheck size={15} />}
-                {t.id === 'microsoft' && <Gamepad2 size={15} />}
-              </div>
-              <div className={styles.tabLabelWrap}>
-                <span className={styles.tabLabel}>{t.label}</span>
-                <span className={`${styles.tabBadge} ${styles['badge_' + t.id]}`}>{t.badge}</span>
-              </div>
-            </button>
-          ))}
+          {TABS.map((tItem) => {
+            const IconComponent = tItem.icon
+            const isActive = tab === tItem.id
+            return (
+              <button
+                key={tItem.id}
+                type="button"
+                className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
+                onClick={() => {
+                  setTab(tItem.id)
+                  setError('')
+                }}
+              >
+                <IconComponent size={14} className={styles.tabIcon} />
+                <span>{tItem.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Form Body */}
         <div className={styles.body}>
           {tab === 'microsoft' ? (
-            <div className={styles.microsoftSection}>
-              <div className={styles.bannerMicrosoft}>
-                <div className={styles.msHeaderRow}>
-                  <div className={styles.msLogoWrap}>
+            <div className={styles.section}>
+              <div className={styles.msCard}>
+                <div className={styles.msHeader}>
+                  <div className={styles.msBrand}>
                     <div className={styles.msGrid}>
                       <span style={{ background: '#f25022' }} />
                       <span style={{ background: '#7fba00' }} />
                       <span style={{ background: '#00a4ef' }} />
                       <span style={{ background: '#ffb900' }} />
                     </div>
-                    <span className={styles.msText}>Официальная Лицензия Microsoft</span>
+                    <span className={styles.msTitle}>{t('microsoft_banner_title')}</span>
                   </div>
-                  <span className={styles.xboxBadge}>Xbox Live</span>
+                  <span className={styles.msBadge}>Xbox Live</span>
                 </div>
-                <p className={styles.msInfo}>
-                  Вход через официальный профиль Minecraft Java Edition. Полный доступ ко всем
-                  лицензионным серверам (Hypixel, 2b2t и др.), официальным скинам и плащам Mojang.
-                </p>
+                <p className={styles.msDesc}>{t('microsoft_banner_desc')}</p>
 
-                <div className={styles.msFeatureList}>
-                  <div className={styles.msFeatureItem}>
-                    <CheckCircle2 size={15} className={styles.msFeatureCheck} />
-                    <span>Значок <b>Лицензия</b> в профиле и подтверждённый статус игрока</span>
+                <div className={styles.featureList}>
+                  <div className={styles.featureItem}>
+                    <CheckCircle2 size={14} className={styles.featureCheck} />
+                    <span>{t('microsoft_feat_1')}</span>
                   </div>
-                  <div className={styles.msFeatureItem}>
-                    <CheckCircle2 size={15} className={styles.msFeatureCheck} />
-                    <span>Безопасный <b>OAuth 2.0</b> вход через официальное окно Microsoft</span>
+                  <div className={styles.featureItem}>
+                    <CheckCircle2 size={14} className={styles.featureCheck} />
+                    <span>{t('microsoft_feat_2')}</span>
                   </div>
-                  <div className={styles.msFeatureItem}>
-                    <CheckCircle2 size={15} className={styles.msFeatureCheck} />
-                    <span>Доступ ко всем лицензионным серверам (Hypixel, GommeHD, 2b2t)</span>
+                  <div className={styles.featureItem}>
+                    <CheckCircle2 size={14} className={styles.featureCheck} />
+                    <span>{t('microsoft_feat_3')}</span>
                   </div>
-                  <div className={styles.msFeatureItem}>
-                    <CheckCircle2 size={15} className={styles.msFeatureCheck} />
-                    <span>Автоматическая синхронизация официальных скинов и плащей</span>
+                  <div className={styles.featureItem}>
+                    <CheckCircle2 size={14} className={styles.featureCheck} />
+                    <span>{t('microsoft_feat_4')}</span>
                   </div>
                 </div>
               </div>
@@ -225,69 +213,67 @@ export default function LoginModal({ onClose, onLogin }) {
 
               <button
                 type="button"
-                className={`${styles.submitBtn} ${styles.submitBtnMicrosoft}`}
+                className={`${styles.primaryBtn} ${styles.msBtn}`}
                 onClick={handleMicrosoftLogin}
                 disabled={loading}
               >
                 {loading ? (
                   <>
-                    <Loader2 size={17} className={styles.spin} />
-                    <span>Ожидание входа в окне Microsoft...</span>
+                    <Loader2 size={15} className={styles.spin} />
+                    <span>{t('microsoft_waiting')}</span>
                   </>
                 ) : (
                   <>
-                    <Gamepad2 size={18} />
-                    <span>Войти через Microsoft (Xbox Live)</span>
+                    <Gamepad2 size={16} />
+                    <span>{t('microsoft_login_btn')}</span>
                   </>
                 )}
               </button>
             </div>
           ) : tab === 'offline' ? (
-            <form className={styles.form} onSubmit={handleOfflineLogin}>
-              <div className={styles.offlineAvatarSection}>
-                <div className={styles.avatarGlow}>
-                  <img
-                    src={`https://mc-heads.net/avatar/${previewNick}/64`}
-                    alt={previewNick}
-                    className={styles.previewAvatar}
-                    onError={(e) => {
-                      e.target.src = 'https://mc-heads.net/avatar/steve/64'
-                    }}
-                  />
+            <form className={styles.section} onSubmit={handleOfflineLogin}>
+              {/* Profile Card Preview */}
+              <div className={styles.profileCard}>
+                <img
+                  src={`https://mc-heads.net/avatar/${encodeURIComponent(previewNick)}/48`}
+                  alt={previewNick}
+                  className={styles.profileAvatar}
+                  onError={(e) => {
+                    e.target.src = 'https://mc-heads.net/avatar/steve/48'
+                  }}
+                />
+                <div className={styles.profileDetails}>
+                  <div className={styles.profileName}>{previewNick}</div>
+                  <div className={styles.profileRole}>{t('offline_profile')}</div>
                 </div>
-                <div className={styles.avatarDetails}>
-                  <div className={styles.avatarTopRow}>
-                    <span className={styles.avatarName}>{previewNick}</span>
-                    <span className={styles.avatarBadge}>Офлайн режим</span>
-                  </div>
-                  <span className={styles.avatarSub}>Локальный профиль Minecraft</span>
-                </div>
+                <span className={styles.offlineTag}>{t('tab_offline')}</span>
               </div>
 
               <div className={styles.inputGroup}>
                 <div className={styles.labelRow}>
-                  <label className={styles.label}>Игровой никнейм</label>
+                  <label className={styles.label}>{t('offline_nickname_label')}</label>
                   <button
                     type="button"
-                    className={styles.rollNickBtn}
+                    className={styles.diceBtn}
                     onClick={rollRandomNick}
-                    title="Сгенерировать случайный ник"
+                    title={t('offline_random_nick')}
                   >
                     <Dices size={13} />
-                    <span>Случайный ник</span>
+                    <span>{t('offline_random_nick')}</span>
                   </button>
                 </div>
+
                 <div className={styles.inputWrap}>
                   <User size={15} className={styles.inputIcon} />
                   <input
                     type="text"
-                    placeholder="Напишите свой Никнейм"
+                    placeholder={t('offline_nickname_placeholder')}
                     value={offlineNick}
                     onChange={(e) => {
                       setOfflineNick(e.target.value)
                       setError('')
                     }}
-                    maxLength={16}
+                    maxLength={24}
                     autoFocus
                   />
                   {offlineNick && (
@@ -295,124 +281,117 @@ export default function LoginModal({ onClose, onLogin }) {
                       type="button"
                       className={styles.clearBtn}
                       onClick={() => setOfflineNick('')}
-                      title="Очистить"
+                      title={t('cancel')}
                     >
-                      <X size={14} />
+                      <X size={13} />
                     </button>
                   )}
                 </div>
 
-                <div className={styles.quickNicks}>
-                  <span className={styles.quickLabel}>Быстрый выбор:</span>
-                  {['Steve', 'Alex', 'ShadowPro', 'VibePlayer', 'CyberMiner'].map((n) => (
+                {/* Quick Nick Suggestion Chips */}
+                <div className={styles.chipRow}>
+                  {COOL_NICKS.slice(0, 5).map((nick) => (
                     <button
-                      key={n}
+                      key={nick}
                       type="button"
-                      className={styles.quickNickChip}
+                      className={styles.chip}
                       onClick={() => {
-                        setOfflineNick(n)
+                        setOfflineNick(nick)
                         setError('')
                       }}
                     >
-                      {n}
+                      {nick}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className={styles.offlinePerks}>
+              {/* Muted Perks */}
+              <div className={styles.perksRow}>
                 <div className={styles.perkItem}>
-                  <CheckCircle2 size={13} className={styles.perkCheck} />
-                  <span>Игра без интернета</span>
+                  <CheckCircle2 size={13} className={styles.perkIcon} />
+                  <span>{t('offline_perk_no_internet')}</span>
                 </div>
                 <div className={styles.perkItem}>
-                  <CheckCircle2 size={13} className={styles.perkCheck} />
-                  <span>Любой ник</span>
+                  <CheckCircle2 size={13} className={styles.perkIcon} />
+                  <span>{t('offline_perk_any_nick')}</span>
                 </div>
                 <div className={styles.perkItem}>
-                  <CheckCircle2 size={13} className={styles.perkCheck} />
-                  <span>Пиратские серверы</span>
+                  <CheckCircle2 size={13} className={styles.perkIcon} />
+                  <span>{t('offline_perk_all_servers')}</span>
                 </div>
               </div>
 
               {error && <div className={styles.errorMessage}>{error}</div>}
 
-              <button type="submit" className={styles.submitBtn}>
-                <User size={16} />
-                <span>Войти как {offlineNick.trim() || 'Игрок'}</span>
+              <button type="submit" className={styles.primaryBtn}>
+                <User size={15} />
+                <span>{t('offline_login_btn', { name: offlineNick.trim() || 'Player' })}</span>
               </button>
             </form>
           ) : (
-            <form className={styles.form} onSubmit={handleElyByLogin}>
-              <div className={styles.bannerEly}>
-                <div className={styles.elyLogoWrap}>
-                  <img
-                    src="https://ely.by/favicon.ico"
-                    alt="Ely.by"
-                    className={styles.elyIcon}
-                    onError={(e) => (e.target.style.display = 'none')}
-                  />
-                  <span className={styles.elyText}>🔵 Ely.by Аккаунт</span>
+            <form className={styles.section} onSubmit={handleElyByLogin}>
+              <div className={styles.elyCard}>
+                <div className={styles.elyBrand}>
+                  <div className={styles.elyDot} />
+                  <span className={styles.elyTitle}>{t('elyby_banner_title')}</span>
                 </div>
-                <p className={styles.elyInfo}>
-                  Официальная поддержка скинов, плащей и скиновой системы Ely.by на серверах.
-                </p>
+                <p className={styles.elyDesc}>{t('elyby_banner_desc')}</p>
               </div>
 
               <div className={styles.inputGroup}>
-                <label className={styles.label}>Логин или Email</label>
+                <label className={styles.label}>{t('elyby_user_label')}</label>
                 <div className={styles.inputWrap}>
                   <User size={15} className={styles.inputIcon} />
                   <input
                     type="text"
-                    placeholder="Ваш логин на Ely.by"
+                    placeholder={t('elyby_user_placeholder')}
                     value={elyUser}
                     onChange={(e) => {
                       setElyUser(e.target.value)
                       setError('')
                     }}
                     autoFocus
-                    disabled={loading}
                   />
                 </div>
               </div>
 
               <div className={styles.inputGroup}>
-                <label className={styles.label}>Пароль</label>
+                <label className={styles.label}>{t('elyby_pass_label')}</label>
                 <div className={styles.inputWrap}>
                   <Lock size={15} className={styles.inputIcon} />
                   <input
                     type={showPass ? 'text' : 'password'}
-                    placeholder="Пароль от аккаунта"
+                    placeholder={t('elyby_pass_placeholder')}
                     value={elyPass}
                     onChange={(e) => {
                       setElyPass(e.target.value)
                       setError('')
                     }}
-                    disabled={loading}
                   />
                   <button
                     type="button"
                     className={styles.passToggle}
-                    onClick={() => setShowPass((v) => !v)}
+                    onClick={() => setShowPass(!showPass)}
+                    tabIndex={-1}
                   >
-                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
               </div>
 
               {error && <div className={styles.errorMessage}>{error}</div>}
 
-              <button type="submit" className={styles.submitBtn} disabled={loading}>
+              <button type="submit" className={styles.primaryBtn} disabled={loading}>
                 {loading ? (
                   <>
-                    <Loader2 size={16} className={styles.spin} />
-                    <span>Проверка данных...</span>
+                    <Loader2 size={15} className={styles.spin} />
+                    <span>{t('loading')}</span>
                   </>
                 ) : (
                   <>
-                    <LogIn size={16} />
-                    <span>Войти через Ely.by</span>
+                    <ShieldCheck size={16} />
+                    <span>{t('elyby_login_btn')}</span>
                   </>
                 )}
               </button>
@@ -420,10 +399,10 @@ export default function LoginModal({ onClose, onLogin }) {
               <button
                 type="button"
                 className={styles.registerLink}
-                onClick={() => window.vibe?.openExternal('https://account.ely.by/register')}
+                onClick={() => window.vibe?.openExternal?.('https://ely.by/registration')}
               >
+                <span>{t('elyby_register')}</span>
                 <ExternalLink size={12} />
-                <span>Создать аккаунт на Ely.by</span>
               </button>
             </form>
           )}

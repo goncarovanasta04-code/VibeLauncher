@@ -9,6 +9,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import styles from './LaunchErrorModal.module.css'
+import { useLanguage } from '../context/LanguageContext'
 
 export default function LaunchErrorModal({
   isOpen,
@@ -16,6 +17,7 @@ export default function LaunchErrorModal({
   errorData,
   onOpenFolder,
 }) {
+  const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
 
   if (!isOpen || !errorData) return null
@@ -23,7 +25,7 @@ export default function LaunchErrorModal({
   const { version, reason, code, logs } = errorData
 
   const handleCopyLogs = () => {
-    const textToCopy = `=== VibeLauncher Crash Report ===\nВерсия: ${version || 'Unknown'}\nКод выхода: ${code ?? 'N/A'}\nПричина: ${reason || 'Неизвестно'}\n\nЛоги:\n${logs || 'Логи отсутствуют'}`
+    const textToCopy = `=== VibeLauncher Crash Report ===\n${t('versions_folder_label')} ${version || 'Unknown'}\n${t('crash_code', { code: code ?? 'N/A' })}\n${t('crash_reason')}: ${reason || t('crash_reason_unknown')}\n\n${t('crash_log_title')}:\n${logs || 'N/A'}`
     navigator.clipboard?.writeText(textToCopy)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -39,13 +41,13 @@ export default function LaunchErrorModal({
               <AlertTriangle size={22} />
             </div>
             <div className={styles.titleCol}>
-              <div className={styles.title}>Сбой при запуске Minecraft</div>
+              <div className={styles.title}>{t('crash_title')}</div>
               <div className={styles.subtitleRow}>
                 {version && (
                   <span className={styles.versionBadge}>{version}</span>
                 )}
                 {code !== undefined && code !== null && (
-                  <span className={styles.codeBadge}>Код: {code}</span>
+                  <span className={styles.codeBadge}>{t('crash_code', { code })}</span>
                 )}
               </div>
             </div>
@@ -53,7 +55,7 @@ export default function LaunchErrorModal({
           <button
             className={styles.closeBtn}
             onClick={onClose}
-            title="Закрыть окно"
+            title={t('close')}
           >
             <X size={18} />
           </button>
@@ -65,18 +67,15 @@ export default function LaunchErrorModal({
           <div className={styles.reasonCard}>
             <HelpCircle size={20} className={styles.reasonIcon} />
             <div className={styles.reasonContent}>
-              <div className={styles.reasonTitle}>Причина сбоя</div>
+              <div className={styles.reasonTitle}>{t('crash_reason')}</div>
               <div className={styles.reasonText}>
-                {reason ||
-                  'Произошла неизвестная ошибка, о которой мы не знаем :( Попробуйте исправить сами.'}
+                {reason || t('crash_reason_unknown')}
               </div>
             </div>
           </div>
 
           <div className={styles.tipBox}>
-            💡 <strong>Совет:</strong> Если игра не запускается, попробуйте
-            включить «Обновить клиент» перед запуском, уменьшить или увеличить
-            выделение оперативной памяти в настройках, или проверить папку mods.
+            💡 <strong>{t('crash_tip_prefix')}</strong> {t('crash_tip')}
           </div>
 
           {/* Collapsible/Scrollable Log View */}
@@ -85,14 +84,14 @@ export default function LaunchErrorModal({
               <div className={styles.logHeader}>
                 <div className={styles.logHeaderLeft}>
                   <Terminal size={14} />
-                  <span>Консольный лог Minecraft</span>
+                  <span>{t('crash_log_title')}</span>
                 </div>
                 <button
                   className={`${styles.logCopyBtn} ${copied ? styles.logCopyBtnSuccess : ''}`}
                   onClick={handleCopyLogs}
                 >
                   {copied ? <Check size={13} /> : <Copy size={13} />}
-                  <span>{copied ? 'Скопировано!' : 'Скопировать лог'}</span>
+                  <span>{copied ? t('crash_copied') : t('crash_copy_log')}</span>
                 </button>
               </div>
               <pre className={styles.logBox}>{logs}</pre>
@@ -109,10 +108,10 @@ export default function LaunchErrorModal({
             }}
           >
             <FolderOpen size={15} />
-            <span>Открыть папку игры</span>
+            <span>{t('crash_open_game_folder')}</span>
           </button>
           <button className={styles.okBtn} onClick={onClose}>
-            Понятно
+            {t('understand')}
           </button>
         </div>
       </div>

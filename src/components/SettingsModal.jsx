@@ -22,59 +22,65 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Globe,
+  Box,
+  Package,
+  Flame,
+  Layers,
+  Radio,
+  ExternalLink,
 } from 'lucide-react'
+import FlagIcon from './FlagIcon'
+import { useLanguage } from '../context/LanguageContext'
 import UpdateModal from './UpdateModal'
 import styles from './SettingsModal.module.css'
 
 const SETTING_TABS = [
-  { id: 'general', label: 'Основные', icon: Sliders },
-  { id: 'java', label: 'Java & Память', icon: Coffee },
-  { id: 'appearance', label: 'Интерфейс & FPS', icon: Sparkles },
-]
-
-const RESOLUTION_PRESETS = [
-  { label: 'Авто (1920 × 1080)', width: 1920, height: 1080 },
-  { label: '1280 × 720 (HD 720p)', width: 1280, height: 720 },
-  { label: '1600 × 900 (HD+)', width: 1600, height: 900 },
-  { label: '1920 × 1080 (Full HD)', width: 1920, height: 1080 },
-  { label: '2560 × 1440 (2K QHD)', width: 2560, height: 1440 },
-  { label: '3840 × 2160 (4K UHD)', width: 3840, height: 2160 },
+  { id: 'general', labelKey: 'settings_general', icon: Sliders },
+  { id: 'java', labelKey: 'settings_tab_java', icon: Coffee },
+  { id: 'appearance', labelKey: 'settings_tab_appearance', icon: Sparkles },
 ]
 
 const GC_PRESETS = [
   {
     id: 'aikar',
-    name: "Флаги Aikar's (G1GC)",
-    desc: 'Оптимизирует задержки сборщика мусора, устраняет микрофризы в тяжелых модпаках.',
-    badge: 'Рекомендуется',
+    nameKey: 'gc_aikar_name',
+    descKey: 'gc_aikar_desc',
+    badgeKey: 'gc_aikar_badge',
+    icon: Zap,
   },
   {
     id: 'shenandoah',
-    name: 'Shenandoah GC',
-    desc: 'Ультранизкое время пауз. Идеально для мощных процессоров и Java 17+.',
-    badge: 'Низкий пинг',
+    nameKey: 'gc_shenandoah_name',
+    descKey: 'gc_shenandoah_desc',
+    badgeKey: 'gc_shenandoah_badge',
+    icon: Cpu,
   },
   {
     id: 'zgc',
-    name: 'ZGC (Z Garbage Collector)',
-    desc: 'Масштабируемый сборщик мусора с паузами менее 1 мс.',
-    badge: 'Новинка',
+    nameKey: 'gc_zgc_name',
+    descKey: 'gc_zgc_desc',
+    badgeKey: 'gc_zgc_badge',
+    icon: Sparkles,
   },
   {
     id: 'potato',
-    name: 'Potato PC (Легковесный G1GC)',
-    desc: 'Минимальное потребление процессора и памяти, предотвращает сбои создания JVM.',
-    badge: 'Макс. FPS',
+    nameKey: 'gc_potato_name',
+    descKey: 'gc_potato_desc',
+    badgeKey: 'gc_potato_badge',
+    icon: Zap,
   },
   {
     id: 'default',
-    name: 'Стандартный JVM G1GC',
-    desc: 'Базовые параметры Java по умолчанию без дополнительных флагов.',
-    badge: 'Vanilla',
+    nameKey: 'gc_default_name',
+    descKey: 'gc_default_desc',
+    badgeKey: 'gc_default_badge',
+    icon: Coffee,
   },
 ]
 
-export default function SettingsModal({ onClose }) {
+export default function SettingsModal({ onClose, onOpenWelcome }) {
+  const { language, setLanguage, t, languages } = useLanguage()
   const [activeTab, setActiveTab] = useState('general')
 
   const [ramMin, setRamMin] = useState(1)
@@ -87,11 +93,10 @@ export default function SettingsModal({ onClose }) {
   const [detectedJavaList, setDetectedJavaList] = useState([])
   const [javaProbeResult, setJavaProbeResult] = useState(null)
   const [gameDir, setGameDir] = useState('')
-  const [fullscreen, setFullscreen] = useState(false)
+  const [screenRes, setScreenRes] = useState({ width: 1920, height: 1080 })
   const [isolateVersionFolders, setIsolateVersionFolders] = useState(true)
   const [disableVideoBg, setDisableVideoBg] = useState(false)
   const [enableAnimations, setEnableAnimations] = useState(true)
-  const [resolutionIndex, setResolutionIndex] = useState(0)
   const [gcPreset, setGcPreset] = useState('aikar')
   const [serverAutoConnect, setServerAutoConnect] = useState('')
   const [discordRpc, setDiscordRpc] = useState(true)
@@ -109,7 +114,17 @@ export default function SettingsModal({ onClose }) {
     loadSettings()
     loadAppVersion()
     loadDetectedJava()
+    loadScreenRes()
   }, [])
+
+  const loadScreenRes = async () => {
+    try {
+      const res = await window.vibe?.getScreenResolution()
+      if (res?.width && res?.height) {
+        setScreenRes({ width: res.width, height: res.height })
+      }
+    } catch (e) {}
+  }
 
   const loadAppVersion = async () => {
     const v = await window.vibe?.getCurrentVersion()
@@ -179,7 +194,6 @@ export default function SettingsModal({ onClose }) {
       probeJava(s.javaPath)
     }
     if (s.gameDir) setGameDir(s.gameDir)
-    if (s.fullscreen !== undefined) setFullscreen(Boolean(s.fullscreen))
     if (s.isolateVersionFolders !== undefined)
       setIsolateVersionFolders(Boolean(s.isolateVersionFolders))
     if (s.disableVideoBg !== undefined)
@@ -190,13 +204,6 @@ export default function SettingsModal({ onClose }) {
     if (s.serverAutoConnect) setServerAutoConnect(s.serverAutoConnect)
     if (s.discordRpc !== undefined) setDiscordRpc(Boolean(s.discordRpc))
     if (s.potatoMode !== undefined) setPotatoMode(Boolean(s.potatoMode))
-
-    if (s.width && s.height) {
-      const idx = RESOLUTION_PRESETS.findIndex(
-        (p) => p.width === Number(s.width) && p.height === Number(s.height)
-      )
-      if (idx !== -1) setResolutionIndex(idx)
-    }
   }
 
   const handleBrowseDir = async () => {
@@ -227,16 +234,12 @@ export default function SettingsModal({ onClose }) {
         await window.vibe?.applyPotatoOptions(gameDir)
       } catch (e) {}
 
-      const resPreset = RESOLUTION_PRESETS[resolutionIndex] || RESOLUTION_PRESETS[0]
       const newSettings = {
         ramMin: 1,
         ramMax: 2,
         javaMode: javaMode || 'auto',
         javaPath: javaPath.trim(),
         gameDir: gameDir.trim(),
-        fullscreen: Boolean(fullscreen),
-        width: resPreset.width,
-        height: resPreset.height,
         isolateVersionFolders: Boolean(isolateVersionFolders),
         disableVideoBg: true,
         enableAnimations: false,
@@ -260,9 +263,6 @@ export default function SettingsModal({ onClose }) {
         javaMode: javaMode || 'auto',
         javaPath: javaPath.trim(),
         gameDir: gameDir.trim(),
-        fullscreen: Boolean(fullscreen),
-        width: RESOLUTION_PRESETS[resolutionIndex]?.width || 1920,
-        height: RESOLUTION_PRESETS[resolutionIndex]?.height || 1080,
         isolateVersionFolders: Boolean(isolateVersionFolders),
         disableVideoBg: Boolean(disableVideoBg),
         enableAnimations: Boolean(enableAnimations),
@@ -279,16 +279,12 @@ export default function SettingsModal({ onClose }) {
   }
 
   const handleSave = async () => {
-    const resPreset = RESOLUTION_PRESETS[resolutionIndex] || RESOLUTION_PRESETS[0]
     const newSettings = {
       ramMin: Number(ramMin) || 1,
       ramMax: Number(ramMax) || 4,
       javaMode: javaMode || 'auto',
       javaPath: javaPath.trim(),
       gameDir: gameDir.trim(),
-      fullscreen: Boolean(fullscreen),
-      width: resPreset.width,
-      height: resPreset.height,
       isolateVersionFolders: Boolean(isolateVersionFolders),
       disableVideoBg: Boolean(disableVideoBg),
       enableAnimations: Boolean(enableAnimations),
@@ -317,8 +313,6 @@ export default function SettingsModal({ onClose }) {
     setJavaPath('')
     setJavaProbeResult(null)
     setGameDir('')
-    setFullscreen(false)
-    setResolutionIndex(0)
     setIsolateVersionFolders(true)
     setDisableVideoBg(false)
     setGcPreset('aikar')
@@ -349,24 +343,27 @@ export default function SettingsModal({ onClose }) {
   const RAM_PROFILES = [
     {
       id: 'vanilla',
-      label: 'Vanilla (Обычная)',
-      desc: 'Без модов или с OptiFine',
+      labelKey: 'settings_profile_vanilla',
+      descKey: 'settings_profile_vanilla_desc',
       ram: Math.min(maxScale, 3),
-      badge: '3 ГБ',
+      badge: '3 GB',
+      icon: Box,
     },
     {
       id: 'mods',
-      label: 'Сборка с модами',
-      desc: 'Forge / Fabric (50-100 модов)',
+      labelKey: 'settings_profile_mods',
+      descKey: 'settings_profile_mods_desc',
       ram: Math.min(maxScale, 6),
-      badge: '6 ГБ',
+      badge: '6 GB',
+      icon: Package,
     },
     {
       id: 'heavy',
-      label: 'Тяжелые моды & Шейдеры',
-      desc: '200+ модов, HD текстуры',
+      labelKey: 'settings_profile_heavy',
+      descKey: 'settings_profile_heavy_desc',
       ram: Math.min(maxScale, Math.max(8, Math.min(12, Math.floor(systemRam * 0.7)))),
-      badge: `${Math.min(maxScale, Math.max(8, Math.min(12, Math.floor(systemRam * 0.7))))} ГБ`,
+      badge: `${Math.min(maxScale, Math.max(8, Math.min(12, Math.floor(systemRam * 0.7))))} GB`,
+      icon: Flame,
     },
   ]
 
@@ -380,11 +377,11 @@ export default function SettingsModal({ onClose }) {
               <Sliders size={18} className={styles.headerIcon} />
             </div>
             <div>
-              <h2 className={styles.title}>Настройки лаунчера</h2>
-              <span className={styles.subtitle}>Персонализация, память, оптимизация и пути</span>
+              <h2 className={styles.title}>{t('settings_title')}</h2>
+              <span className={styles.subtitle}>{t('settings_subtitle')}</span>
             </div>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} title="Закрыть">
+          <button type="button" className={styles.closeBtn} onClick={onClose} title={t('close')}>
             <X size={16} />
           </button>
         </div>
@@ -401,7 +398,7 @@ export default function SettingsModal({ onClose }) {
                 onClick={() => setActiveTab(tab.id)}
               >
                 <Icon size={14} />
-                <span>{tab.label}</span>
+                <span>{t(tab.labelKey)}</span>
               </button>
             )
           })}
@@ -412,16 +409,81 @@ export default function SettingsModal({ onClose }) {
           {/* TAB 1: ОСНОВНЫЕ */}
           {activeTab === 'general' && (
             <div className={styles.tabContent}>
+              {/* Card 0: Language Selection */}
+              <div className={styles.card}>
+                <div className={styles.cardHeader}>
+                  <Globe size={15} className={styles.cardIcon} />
+                  <span className={styles.cardTitle}>{t('settings_language')}</span>
+                </div>
+                <p className={styles.inputNote} style={{ marginTop: 0, marginBottom: 10 }}>
+                  {t('settings_language_desc')}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))', gap: 8 }}>
+                  {languages.map((item) => {
+                    const isSelected = language === item.code
+                    return (
+                      <button
+                        key={item.code}
+                        type="button"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          padding: '9px 12px',
+                          borderRadius: 6,
+                          background: isSelected ? '#182232' : '#0e1117',
+                          border: isSelected ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.08)',
+                          color: isSelected ? '#ffffff' : '#8b949e',
+                          cursor: 'pointer',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          transition: 'all 150ms ease',
+                        }}
+                        onClick={() => setLanguage(item.code)}
+                      >
+                        <FlagIcon code={item.code} size={15} />
+                        <span>{item.nativeName}</span>
+                        {isSelected && <Check size={13} style={{ color: '#ffffff', marginLeft: 2 }} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Card 0.5: Onboarding / Tutorial */}
+              {onOpenWelcome && (
+                <div className={styles.card}>
+                  <div className={styles.toggleCard}>
+                    <div className={styles.toggleInfo}>
+                      <span className={styles.toggleTitle}>{t('settings_tutorial_banner')}</span>
+                      <p className={styles.toggleDesc}>
+                        {t('settings_tutorial_banner_desc')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.quickActionBtn}
+                      style={{ padding: '6px 14px', borderRadius: 6, whiteSpace: 'nowrap' }}
+                      onClick={onOpenWelcome}
+                    >
+                      <Sparkles size={14} />
+                      <span>{t('settings_run_tutorial')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Card 1: Game directory */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <HardDrive size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Директория игры Minecraft</span>
+                  <span className={styles.cardTitle}>{t('settings_game_dir')}</span>
                 </div>
                 <div className={styles.inputWithBrowse}>
                   <input
                     type="text"
-                    placeholder="%APPDATA%\.minecraft (стандартная папка)"
+                    placeholder="%APPDATA%\.minecraft"
                     value={gameDir}
                     onChange={(e) => setGameDir(e.target.value)}
                     className={styles.textInput}
@@ -430,10 +492,10 @@ export default function SettingsModal({ onClose }) {
                     type="button"
                     className={styles.browseBtn}
                     onClick={handleBrowseDir}
-                    title="Выбрать другую папку"
+                    title={t('settings_browse')}
                   >
                     <Folder size={14} />
-                    <span>Обзор</span>
+                    <span>{t('settings_browse')}</span>
                   </button>
                 </div>
 
@@ -444,7 +506,7 @@ export default function SettingsModal({ onClose }) {
                     onClick={() => window.vibe?.openGameDir(gameDir)}
                   >
                     <FolderOpen size={13} />
-                    <span>Открыть .minecraft</span>
+                    <span>{t('settings_open_minecraft')}</span>
                   </button>
                   <button
                     type="button"
@@ -452,53 +514,37 @@ export default function SettingsModal({ onClose }) {
                     onClick={() => window.vibe?.openVersionsDir(gameDir)}
                   >
                     <FolderOpen size={13} />
-                    <span>Открыть versions</span>
+                    <span>{t('settings_open_versions')}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Card 2: Resolution & Fullscreen */}
+              {/* Card 2: Auto Screen Resolution */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <Monitor size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Разрешение экрана и окно игры</span>
+                  <span className={styles.cardTitle}>{t('settings_resolution')}</span>
                 </div>
-                <div className={styles.controlRow}>
-                  <div className={styles.selectWrap}>
-                    <span className={styles.fieldLabel}>Размер окна:</span>
-                    <select
-                      className={styles.selectInput}
-                      value={resolutionIndex}
-                      onChange={(e) => setResolutionIndex(Number(e.target.value))}
-                      disabled={fullscreen}
-                    >
-                      {RESOLUTION_PRESETS.map((res, i) => (
-                        <option key={i} value={i}>
-                          {res.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className={styles.toggleCardInner}>
-                  <div className={styles.toggleInfo}>
-                    <div className={styles.toggleTitleRow}>
-                      <Maximize size={14} className={styles.toggleIcon} />
-                      <span className={styles.toggleTitle}>Полноэкранный режим (Fullscreen)</span>
+                <div className={styles.autoResBox}>
+                  <div className={styles.autoResHeader}>
+                    <div className={styles.autoResIconWrap}>
+                      <Monitor size={16} />
                     </div>
-                    <p className={styles.toggleDesc}>
-                      Запускать Minecraft сразу на весь экран без оконных рамок Windows.
-                    </p>
+                    <div className={styles.autoResInfo}>
+                      <div className={styles.autoResTitleRow}>
+                        <span className={styles.autoResTitle}>
+                          {screenRes.width} × {screenRes.height}
+                        </span>
+                        <span className={styles.autoResBadge}>
+                          {t('settings_res_auto_detected') || 'Автоматически под монитор'}
+                        </span>
+                      </div>
+                      <p className={styles.autoResDesc}>
+                        {t('settings_res_auto_detected_desc') ||
+                          'Лаунчер автоматически сканирует разрешение вашего экрана и передает оптимальные параметры в Minecraft для запуска без искажений и с максимальной четкостью.'}
+                      </p>
+                    </div>
                   </div>
-                  <label className={styles.switch}>
-                    <input
-                      type="checkbox"
-                      checked={fullscreen}
-                      onChange={(e) => setFullscreen(e.target.checked)}
-                    />
-                    <span className={styles.slider} />
-                  </label>
                 </div>
               </div>
 
@@ -506,9 +552,9 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
                   <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}>Изоляция файлов по версиям</span>
+                    <span className={styles.toggleTitle}>{t('settings_isolate_folders')}</span>
                     <p className={styles.toggleDesc}>
-                      Каждая версия имеет собственные независимые папки <b>mods</b>, <b>shaderpacks</b> и <b>resourcepacks</b> в <code>.minecraft/versions/</code>.
+                      {t('settings_isolate_folders_desc')}
                     </p>
                   </div>
                   <label className={styles.switch}>
@@ -526,17 +572,17 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <Server size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Автоматический вход на сервер</span>
+                  <span className={styles.cardTitle}>{t('settings_server_autoconnect')}</span>
                 </div>
                 <input
                   type="text"
-                  placeholder="mc.hypixel.net или ip:порт (опционально)"
+                  placeholder={t('settings_server_autoconnect_placeholder')}
                   value={serverAutoConnect}
                   onChange={(e) => setServerAutoConnect(e.target.value)}
                   className={styles.textInput}
                 />
                 <span className={styles.inputNote}>
-                  Если заполнено, игра сразу подключится к указанному серверу при запуске.
+                  {t('settings_server_autoconnect_desc')}
                 </span>
               </div>
             </div>
@@ -549,7 +595,7 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <Coffee size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Среда исполнения Java</span>
+                  <span className={styles.cardTitle}>{t('settings_java_runtime')}</span>
                 </div>
 
                 {/* Mode Switcher: Авто vs Вручную */}
@@ -560,8 +606,8 @@ export default function SettingsModal({ onClose }) {
                     onClick={() => setJavaMode('auto')}
                   >
                     <Sparkles size={14} />
-                    <span>Автоматический выбор (оптимальный)</span>
-                    <span className={styles.optBadge}>Рекомендуется</span>
+                    <span>{t('settings_java_auto')}</span>
+                    <span className={styles.optBadge}>{t('settings_java_auto_badge')}</span>
                   </button>
                   <button
                     type="button"
@@ -569,7 +615,7 @@ export default function SettingsModal({ onClose }) {
                     onClick={() => setJavaMode('manual')}
                   >
                     <FolderOpen size={14} />
-                    <span>Выбрать вручную на компьютере</span>
+                    <span>{t('settings_java_manual')}</span>
                   </button>
                 </div>
 
@@ -578,20 +624,16 @@ export default function SettingsModal({ onClose }) {
                     <div className={styles.javaAutoHeader}>
                       <CheckCircle2 size={18} className={styles.javaAutoIcon} />
                       <div>
-                        <div className={styles.javaAutoTitle}>Умный подбор Java под каждую версию Minecraft</div>
+                        <div className={styles.javaAutoTitle}>{t('settings_java_smart_title')}</div>
                         <div className={styles.javaAutoDesc}>
-                          Лаунчер автоматически определит и запустит нужную версию:
-                          <b> Java 8</b> для 1.16.5 и старых версий, 
-                          <b> Java 17</b> для 1.17–1.20.4, 
-                          <b> Java 21</b> для 1.20.5+ и 1.21+. 
-                          Если нужной Java нет на ПК, лаунчер сам автоматически скачает чистый портативный Temurin JDK без лишних вопросов.
+                          {t('settings_java_smart_desc')}
                         </div>
                       </div>
                     </div>
 
                     {detectedJavaList.length > 0 && (
                       <div className={styles.detectedJavaSection}>
-                        <div className={styles.detectedTitle}>Обнаружено сред Java на вашем ПК ({detectedJavaList.length}):</div>
+                        <div className={styles.detectedTitle}>{t('settings_detected_java', { count: detectedJavaList.length })}</div>
                         <div className={styles.detectedList}>
                           {detectedJavaList.map((item, idx) => (
                             <div key={idx} className={styles.detectedItem}>
@@ -605,7 +647,7 @@ export default function SettingsModal({ onClose }) {
                   </div>
                 ) : (
                   <div className={styles.javaManualBox}>
-                    <div className={styles.manualFieldLabel}>Укажите путь к исполняемому файлу (java.exe или javaw.exe):</div>
+                    <div className={styles.manualFieldLabel}>{t('settings_java_manual_label')}</div>
                     <div className={styles.pathInputRow}>
                       <input
                         type="text"
@@ -618,10 +660,10 @@ export default function SettingsModal({ onClose }) {
                         type="button"
                         className={styles.browseBtn}
                         onClick={handleBrowseJava}
-                        title="Выбрать java.exe на компьютере"
+                        title={t('settings_browse_java_tip')}
                       >
                         <Folder size={14} />
-                        <span>Обзор...</span>
+                        <span>{t('settings_browse')}</span>
                       </button>
                     </div>
 
@@ -631,12 +673,12 @@ export default function SettingsModal({ onClose }) {
                         {javaProbeResult.valid ? (
                           <>
                             <Check size={14} />
-                            <span>Обнаружена <b>Java {javaProbeResult.major}</b> — Файл проверен и готов к запуску игры</span>
+                            <span>{t('settings_java_valid', { version: javaProbeResult.major })}</span>
                           </>
                         ) : (
                           <>
                             <X size={14} />
-                            <span>Файл не найден или не является рабочей Java</span>
+                            <span>{t('settings_java_invalid')}</span>
                           </>
                         )}
                       </div>
@@ -645,7 +687,7 @@ export default function SettingsModal({ onClose }) {
                     {/* Quick picks from detected runtimes */}
                     {detectedJavaList.length > 0 && (
                       <div className={styles.quickJavaPicks}>
-                        <span className={styles.quickPickLabel}>Быстрый выбор из найденных на ПК:</span>
+                        <span className={styles.quickPickLabel}>{t('settings_quick_java_picks')}</span>
                         <div className={styles.quickPickChips}>
                           {detectedJavaList.map((item, idx) => (
                             <button
@@ -671,12 +713,12 @@ export default function SettingsModal({ onClose }) {
                 <div className={styles.ramHeader}>
                   <div className={styles.ramHeaderLeft}>
                     <Cpu size={15} className={styles.cardIcon} />
-                    <span className={styles.cardTitle}>Выделение оперативной памяти (RAM)</span>
+                    <span className={styles.cardTitle}>{t('settings_ram_allocation')}</span>
                   </div>
-                  <div className={styles.systemRamBadge} title="Общий объем физической памяти вашего компьютера">
+                  <div className={styles.systemRamBadge} title={t('settings_system_ram_tip')}>
                     <Monitor size={12} />
-                    <span>Всего на ПК: <b>{systemRam} ГБ</b></span>
-                    {systemFreeRam && <span className={styles.systemFreeText}>(~{systemFreeRam} ГБ свободно)</span>}
+                    <span>{t('settings_system_ram_total', { total: systemRam })}</span>
+                    {systemFreeRam && <span className={styles.systemFreeText}>{t('settings_system_ram_free', { free: systemFreeRam })}</span>}
                   </div>
                 </div>
 
@@ -685,9 +727,9 @@ export default function SettingsModal({ onClose }) {
                   <div className={styles.ramHeroValueCol}>
                     <div className={styles.ramHeroValueRow}>
                       <span className={styles.ramHeroNumber}>{ramMax}</span>
-                      <span className={styles.ramHeroUnit}>ГБ</span>
+                      <span className={styles.ramHeroUnit}>GB</span>
                     </div>
-                    <span className={styles.ramHeroSub}>Выделено Minecraft (Xmx)</span>
+                    <span className={styles.ramHeroSub}>{t('settings_ram_allocated_xmx')}</span>
                   </div>
 
                   <div className={styles.ramHeroStatusCol}>
@@ -696,17 +738,17 @@ export default function SettingsModal({ onClose }) {
                       {ramStatus === 'moderate' && <Zap size={13} className={styles.statusIconModerate} />}
                       {ramStatus === 'warning' && <AlertTriangle size={13} className={styles.statusIconWarning} />}
                       <span>
-                        {ramStatus === 'optimal' && 'Оптимальный баланс'}
-                        {ramStatus === 'moderate' && 'Высокое выделение'}
-                        {ramStatus === 'warning' && 'Риск зависания Windows'}
+                        {ramStatus === 'optimal' && t('settings_ram_optimal')}
+                        {ramStatus === 'moderate' && t('settings_ram_moderate')}
+                        {ramStatus === 'warning' && t('settings_ram_warning')}
                       </span>
-                      <span className={styles.ramPctBadge}>{ramPctOfSystem}% ОЗУ ПК</span>
+                      <span className={styles.ramPctBadge}>{t('settings_ram_pct_system', { pct: ramPctOfSystem })}</span>
                     </div>
 
                     <p className={styles.ramHeroHint}>
-                      {ramStatus === 'optimal' && 'Идеальный баланс: быстрая работа игры без фризов сборщика мусора и без влияния на систему.'}
-                      {ramStatus === 'moderate' && 'Подходит для крупных модпаков и шейдеров. Закройте тяжелые фоновые программы.'}
-                      {ramStatus === 'warning' && `Выделено ${ramPctOfSystem}% всей памяти ПК! Оставьте хотя бы 2-3 ГБ для Windows, иначе система начнет сбрасывать данные в файл подкачки.`}
+                      {ramStatus === 'optimal' && t('settings_ram_optimal_hint')}
+                      {ramStatus === 'moderate' && t('settings_ram_moderate_hint')}
+                      {ramStatus === 'warning' && t('settings_ram_warning_hint', { pct: ramPctOfSystem })}
                     </p>
                   </div>
                 </div>
@@ -727,7 +769,7 @@ export default function SettingsModal({ onClose }) {
                       }}
                       className={styles.ramMainRange}
                       style={{
-                        background: `linear-gradient(90deg, #38bdf8 0%, #a855f7 ${ramMaxPct}%, rgba(255, 255, 255, 0.08) ${ramMaxPct}%)`,
+                        background: `linear-gradient(90deg, #ffffff 0%, #a855f7 ${ramMaxPct}%, rgba(255, 255, 255, 0.08) ${ramMaxPct}%)`,
                       }}
                     />
                   </div>
@@ -748,7 +790,7 @@ export default function SettingsModal({ onClose }) {
                             setRamMax(gb)
                             if (ramMin > gb) setRamMin(gb)
                           }}
-                          title={`Выделить ${gb} ГБ`}
+                          title={t('settings_allocate_ram_tip', { gb })}
                         >
                           <span className={styles.ramTickPip} />
                           <span className={styles.ramTickText}>{gb}G</span>
@@ -760,7 +802,7 @@ export default function SettingsModal({ onClose }) {
 
                 {/* Quick Selection Buttons */}
                 <div className={styles.quickPresetsSection}>
-                  <span className={styles.presetsLabel}>Быстрый выбор:</span>
+                  <span className={styles.presetsLabel}>{t('settings_quick_choice')}</span>
                   <div className={styles.quickPresetsList}>
                     {presetOptions.map((gb) => (
                       <button
@@ -772,7 +814,7 @@ export default function SettingsModal({ onClose }) {
                           if (ramMin > gb) setRamMin(gb)
                         }}
                       >
-                        {gb} ГБ
+                        {gb} GB
                       </button>
                     ))}
                   </div>
@@ -782,6 +824,7 @@ export default function SettingsModal({ onClose }) {
                 <div className={styles.profilesGrid}>
                   {RAM_PROFILES.map((prof) => {
                     const isSelected = ramMax === prof.ram
+                    const ProfIcon = prof.icon
                     return (
                       <button
                         key={prof.id}
@@ -793,10 +836,13 @@ export default function SettingsModal({ onClose }) {
                         }}
                       >
                         <div className={styles.profileCardTop}>
-                          <span className={styles.profileTitle}>{prof.label}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {ProfIcon && <ProfIcon size={13} style={{ color: isSelected ? '#ffffff' : '#8b949e' }} />}
+                            <span className={styles.profileTitle}>{t(prof.labelKey)}</span>
+                          </div>
                           <span className={styles.profileBadge}>{prof.badge}</span>
                         </div>
-                        <span className={styles.profileDesc}>{prof.desc}</span>
+                        <span className={styles.profileDesc}>{t(prof.descKey)}</span>
                       </button>
                     )
                   })}
@@ -811,12 +857,12 @@ export default function SettingsModal({ onClose }) {
                   >
                     <div className={styles.advancedXmsToggleLeft}>
                       <Sliders size={13} className={styles.advancedXmsIcon} />
-                      <span className={styles.advancedXmsTitle}>Начальная память (Xms)</span>
-                      <span className={styles.advancedXmsBadge}>{ramMin} ГБ</span>
+                      <span className={styles.advancedXmsTitle}>{t('settings_xms_title')}</span>
+                      <span className={styles.advancedXmsBadge}>{ramMin} GB</span>
                     </div>
                     <div className={styles.advancedXmsToggleRight}>
                       <span className={styles.advancedXmsToggleHint}>
-                        {showAdvancedRam ? 'Скрыть параметры' : 'Настроить Xms'}
+                        {showAdvancedRam ? t('settings_xms_hide') : t('settings_xms_configure')}
                       </span>
                       {showAdvancedRam ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </div>
@@ -827,8 +873,8 @@ export default function SettingsModal({ onClose }) {
                       <div className={styles.advancedXmsRow}>
                         <div className={styles.advancedXmsSliderBox}>
                           <div className={styles.advancedXmsSliderHeader}>
-                            <span className={styles.advancedXmsFieldLabel}>Стартовый размер кучи (-Xms)</span>
-                            <span className={styles.badgeHighlight}>{ramMin} ГБ</span>
+                            <span className={styles.advancedXmsFieldLabel}>{t('settings_xms_initial_heap')}</span>
+                            <span className={styles.badgeHighlight}>{ramMin} GB</span>
                           </div>
                           <input
                             type="range"
@@ -845,14 +891,14 @@ export default function SettingsModal({ onClose }) {
                           type="button"
                           className={styles.autoXmsBtn}
                           onClick={() => setRamMin(Math.max(1, Math.min(2, Math.floor(ramMax / 2))))}
-                          title="Установить оптимальное значение (1-2 ГБ)"
+                          title={t('settings_xms_recommended_tip')}
                         >
-                          Рекомендованное ({Math.max(1, Math.min(2, Math.floor(ramMax / 2)))} ГБ)
+                          {t('settings_xms_recommended', { gb: Math.max(1, Math.min(2, Math.floor(ramMax / 2))) })}
                         </button>
                       </div>
 
                       <p className={styles.advancedXmsNote}>
-                        💡 <b>Xms</b> определяет объем памяти при первом старте игры. Для современных сборок и алгоритмов G1GC оптимально 1–2 ГБ. Лаунчер автоматически гарантирует, что Xms никогда не превысит Xmx.
+                        💡 {t('settings_xms_note')}
                       </p>
                     </div>
                   )}
@@ -863,27 +909,34 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <Zap size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Оптимизация сборщика мусора (GC)</span>
+                  <span className={styles.cardTitle}>{t('settings_gc_title')}</span>
                 </div>
                 <div className={styles.gcList}>
-                  {GC_PRESETS.map((preset) => (
-                    <div
-                      key={preset.id}
-                      className={`${styles.gcCard} ${gcPreset === preset.id ? styles.gcCardActive : ''}`}
-                      onClick={() => setGcPreset(preset.id)}
-                    >
-                      <div className={styles.gcRadio}>
-                        <div className={styles.gcRadioInner} />
-                      </div>
-                      <div className={styles.gcInfo}>
-                        <div className={styles.gcTitleRow}>
-                          <span className={styles.gcName}>{preset.name}</span>
-                          <span className={styles.gcBadge}>{preset.badge}</span>
+                  {GC_PRESETS.map((preset) => {
+                    const GcIcon = preset.icon
+                    const isGcSelected = gcPreset === preset.id
+                    return (
+                      <div
+                        key={preset.id}
+                        className={`${styles.gcCard} ${isGcSelected ? styles.gcCardActive : ''}`}
+                        onClick={() => setGcPreset(preset.id)}
+                      >
+                        <div className={styles.gcRadio}>
+                          <div className={styles.gcRadioInner} />
                         </div>
-                        <p className={styles.gcDesc}>{preset.desc}</p>
+                        <div className={styles.gcInfo}>
+                          <div className={styles.gcTitleRow}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {GcIcon && <GcIcon size={13} style={{ color: isGcSelected ? '#ffffff' : '#8b949e' }} />}
+                              <span className={styles.gcName}>{t(preset.nameKey)}</span>
+                            </div>
+                            <span className={styles.gcBadge}>{t(preset.badgeKey)}</span>
+                          </div>
+                          <p className={styles.gcDesc}>{t(preset.descKey)}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
@@ -891,12 +944,12 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <Coffee size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Исполняемый файл Java (javaw.exe)</span>
+                  <span className={styles.cardTitle}>{t('settings_java_file_title')}</span>
                 </div>
                 <div className={styles.inputWithBrowse}>
                   <input
                     type="text"
-                    placeholder="Автоопределение (системная Java 17+)"
+                    placeholder={t('settings_java_file_placeholder')}
                     value={javaPath}
                     onChange={(e) => setJavaPath(e.target.value)}
                     className={styles.textInput}
@@ -905,14 +958,14 @@ export default function SettingsModal({ onClose }) {
                     type="button"
                     className={styles.browseBtn}
                     onClick={handleBrowseJava}
-                    title="Выбрать java.exe"
+                    title={t('settings_browse_java_tip')}
                   >
                     <Folder size={14} />
-                    <span>Обзор</span>
+                    <span>{t('settings_browse')}</span>
                   </button>
                 </div>
                 <span className={styles.inputNote}>
-                  Оставьте пустым для автоматического поиска установленной Java в системе.
+                  {t('settings_java_file_note')}
                 </span>
               </div>
             </div>
@@ -925,15 +978,28 @@ export default function SettingsModal({ onClose }) {
               <div className={`${styles.card} ${styles.potatoCard} ${potatoMode ? styles.potatoCardActive : ''}`}>
                 <div className={styles.potatoHeader}>
                   <div className={styles.potatoTitleRow}>
-                    <span className={styles.potatoEmoji}>🥔</span>
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 6,
+                      background: potatoMode ? '#f59e0b' : '#221c16',
+                      color: potatoMode ? '#1a1715' : '#f59e0b',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <Zap size={18} />
+                    </div>
                     <div className={styles.potatoTextGroup}>
                       <div className={styles.potatoTitle}>
-                        Графика «Potato PC»
-                        <span className={styles.potatoBadge}>Для очень слабых ПК</span>
-                        {potatoMode && <span className={styles.potatoActiveBadge}>АКТИВИРОВАНО</span>}
+                        {t('settings_potato_mode_title')}
+                        <span className={styles.potatoBadge}>{t('settings_potato_mode_badge')}</span>
+                        {potatoMode && <span className={styles.potatoActiveBadge}>{t('settings_potato_activated')}</span>}
                       </div>
                       <p className={styles.potatoDesc}>
-                        Максимальная оптимизация лаунчера и игры для слабых ПК и ноутбуков: отключает живой видео-фон и 3D-графику в лаунчере, переводит JVM на легкий сборщик мусора, безопасно выделяет ОЗУ и настраивает графику Minecraft (options.txt) на минимальные требования для максимального FPS.
+                        {t('settings_potato_desc')}
                       </p>
                     </div>
                   </div>
@@ -942,15 +1008,15 @@ export default function SettingsModal({ onClose }) {
                     className={`${styles.potatoActionBtn} ${potatoMode ? styles.potatoActionBtnActive : ''}`}
                     onClick={handleApplyPotatoMode}
                   >
-                    <Zap size={15} />
-                    <span>{potatoMode ? 'Отключить Potato' : 'Включить режим Potato'}</span>
+                    <Zap size={14} />
+                    <span>{potatoMode ? t('settings_potato_disable') : t('settings_potato_enable')}</span>
                   </button>
                 </div>
 
                 {potatoToast && (
                   <div className={styles.potatoToast}>
                     <CheckCircle2 size={16} />
-                    <span>Режим «Potato PC» успешно активирован! Все настройки лаунчера и игры оптимизированы для слабого ПК.</span>
+                    <span>{t('settings_potato_toast')}</span>
                   </div>
                 )}
               </div>
@@ -959,9 +1025,9 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
                   <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}>3D-анимации и живой фон</span>
+                    <span className={styles.toggleTitle}>{t('settings_3d_bg')}</span>
                     <p className={styles.toggleDesc}>
-                      Включает динамический 3D-фон с кубами, кристаллами и сеткой горизонта. Автоматически уходит в сон при запуске игры для 100% FPS в Minecraft.
+                      {t('settings_3d_bg_desc')}
                     </p>
                   </div>
                   <label className={styles.switch}>
@@ -979,9 +1045,9 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
                   <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}>Режим энергосбережения / FPS-буст</span>
+                    <span className={styles.toggleTitle}>{t('settings_energy_saver')}</span>
                     <p className={styles.toggleDesc}>
-                      Отключает живой видео-фон лаунчера для экономии ресурсов видеокарты и заряда аккумулятора ноутбука.
+                      {t('settings_energy_saver_desc')}
                     </p>
                   </div>
                   <label className={styles.switch}>
@@ -999,9 +1065,9 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
                   <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}>Discord Rich Presence</span>
+                    <span className={styles.toggleTitle}>{t('settings_discord_rpc_title')}</span>
                     <p className={styles.toggleDesc}>
-                      Отображает красивый статус в профиле Discord во время игры («Играет в VibeLauncher • Minecraft 1.16.5»).
+                      {t('settings_discord_rpc_detail')}
                     </p>
                   </div>
                   <label className={styles.switch}>
@@ -1019,11 +1085,11 @@ export default function SettingsModal({ onClose }) {
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
                   <RefreshCw size={15} className={styles.cardIcon} />
-                  <span className={styles.cardTitle}>Обновление лаунчера</span>
+                  <span className={styles.cardTitle}>{t('settings_updates')}</span>
                 </div>
                 <div className={styles.updateCardContent}>
                   <div className={styles.updateVerInfo}>
-                    <span className={styles.updateVerLabel}>Текущая версия:</span>
+                    <span className={styles.updateVerLabel}>{t('settings_current_version')}</span>
                     <span className={styles.updateVerBadge}>v{currentAppVersion}</span>
                   </div>
 
@@ -1034,7 +1100,7 @@ export default function SettingsModal({ onClose }) {
                     disabled={checkingUpdate}
                   >
                     <RefreshCw size={13} className={checkingUpdate ? styles.spin : ''} />
-                    <span>{checkingUpdate ? 'Проверка...' : 'Проверить обновления'}</span>
+                    <span>{checkingUpdate ? t('settings_checking') : t('settings_check_updates')}</span>
                   </button>
                 </div>
 
@@ -1046,7 +1112,7 @@ export default function SettingsModal({ onClose }) {
                         <div className={styles.updateAvailableText}>
                           <Sparkles size={16} className={styles.sparkleIcon} />
                           <span>
-                            Найдено обновление <b>v{updateResult.latestVersion}</b>!
+                            {t('settings_update_available', { version: updateResult.latestVersion })}
                           </span>
                         </div>
                         <button
@@ -1055,27 +1121,27 @@ export default function SettingsModal({ onClose }) {
                           onClick={() => setShowUpdateModal(true)}
                         >
                           <Download size={13} />
-                          <span>Обновить</span>
+                          <span>{t('settings_update_btn')}</span>
                         </button>
                       </div>
                     ) : (
                       <div className={styles.updateLatestRow}>
                         <CheckCircle2 size={15} className={styles.latestCheckIcon} />
-                        <span>У вас установлена самая свежая версия VibeLauncher.</span>
+                        <span>{t('settings_up_to_date')}</span>
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Card 4: Liquid Glass info */}
+              {/* Card 4: About VibeLauncher */}
               <div className={styles.card}>
-                <div className={styles.glassInfoBox}>
-                  <Sparkles size={20} className={styles.glassInfoIcon} />
+                <div className={styles.aboutBox}>
+                  <Info size={18} className={styles.aboutIcon} />
                   <div>
-                    <h4 className={styles.glassInfoTitle}>Apple Liquid Glass Design</h4>
-                    <p className={styles.glassInfoDesc}>
-                      В лаунчере активирован аппаратный оптический движок Liquid Glass со световыми фасками и интерактивным преломлением.
+                    <h4 className={styles.aboutTitle}>VibeLauncher • v{currentAppVersion}</h4>
+                    <p className={styles.aboutDesc}>
+                      {t('settings_about_desc')}
                     </p>
                   </div>
                 </div>
@@ -1088,7 +1154,7 @@ export default function SettingsModal({ onClose }) {
         <div className={styles.footer}>
           <button type="button" className={styles.resetBtn} onClick={handleReset}>
             <RotateCcw size={14} />
-            <span>Сбросить</span>
+            <span>{t('settings_reset_btn')}</span>
           </button>
 
           <button
@@ -1099,12 +1165,12 @@ export default function SettingsModal({ onClose }) {
             {saved ? (
               <>
                 <Check size={15} />
-                <span>Настройки сохранены!</span>
+                <span>{t('settings_saved_btn')}</span>
               </>
             ) : (
               <>
                 <Save size={15} />
-                <span>Сохранить настройки</span>
+                <span>{t('settings_save_btn')}</span>
               </>
             )}
           </button>

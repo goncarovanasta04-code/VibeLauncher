@@ -10,13 +10,13 @@
 
 .panel {
   flex: 1;
-  border-radius: 24px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: 
     linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
-    rgba(8, 14, 28, 0.52);
+    #0f1115;
   backdrop-filter: blur(40px) saturate(190%) contrast(105%);
   -webkit-backdrop-filter: blur(40px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -24,7 +24,7 @@
     inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
     inset 0 -1px 2px rgba(0, 0, 0, 0.4),
     0 24px 60px -12px rgba(0, 0, 0, 0.75),
-    0 0 50px rgba(56, 189, 248, 0.12);
+    0 0 50px rgba(255, 255, 255, 0.15);
   min-height: 0;
 }
 
@@ -75,12 +75,12 @@
   color: #ffffff !important;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.25) !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 4px 16px rgba(56, 189, 248, 0.25) !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.5), 0 4px 16px rgba(255, 255, 255, 0.15) !important;
 }
 
 .tabBadge {
-  background: rgba(56, 189, 248, 0.25);
-  color: #38bdf8;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
@@ -127,7 +127,7 @@
 .selectLabel {
   font-size: 11.5px;
   font-weight: 600;
-  color: #38bdf8;
+  color: #ffffff;
   white-space: nowrap;
 }
 
@@ -169,7 +169,7 @@
 .progressWrap {
   padding: 10px 18px;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(14, 165, 233, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 }
 
@@ -187,7 +187,7 @@
 
 .progressPct {
   font-size: 12px;
-  color: #38bdf8;
+  color: #ffffff;
   font-weight: 700;
 }
 
@@ -200,10 +200,10 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  background: linear-gradient(90deg, #e2e8f0 0%, #ffffff 100%);
   border-radius: 99px;
   transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
 }
 
 /* List */
@@ -222,7 +222,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: 
     linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%),
     rgba(15, 23, 42, 0.35);
@@ -236,8 +236,8 @@
 .row:hover {
   background: 
     linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
-    rgba(56, 189, 248, 0.12);
-  border-color: rgba(56, 189, 248, 0.35);
+    rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1.5px);
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25), 0 8px 20px -4px rgba(0, 0, 0, 0.4);
 }
@@ -303,8 +303,8 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.15);
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -321,18 +321,18 @@
   gap: 5px;
   padding: 5px 12px;
   border-radius: 6px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.3) 0%, rgba(14, 165, 233, 0.4) 100%);
+  background: #1f232c;
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid rgba(56, 189, 248, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .selectActiveBtn:hover {
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  background: linear-gradient(135deg, #e2e8f0 0%, #ffffff 100%);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
 }
 
 .deleteBtn {
@@ -362,20 +362,20 @@
   gap: 6px;
   padding: 5px 12px;
   border-radius: 6px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(14, 165, 233, 0.3) 100%);
-  color: #38bdf8;
+  background: #1f232c;
+  color: #ffffff;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 
 .installBtn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+  background: linear-gradient(135deg, #e2e8f0 0%, #ffffff 100%);
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
 }
 
 .installBtn:disabled {
@@ -395,7 +395,7 @@
 }
 
 .emptyIcon {
-  color: rgba(56, 189, 248, 0.5);
+  color: rgba(255, 255, 255, 0.15);
 }
 
 .emptyState p {
@@ -458,7 +458,7 @@
 .chipsLabel {
   font-size: 11px;
   font-weight: 600;
-  color: #38bdf8;
+  color: #ffffff;
   white-space: nowrap;
 }
 
@@ -482,16 +482,16 @@
 }
 
 .mcChip:hover {
-  background: rgba(56, 189, 248, 0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  border-color: rgba(56, 189, 248, 0.3);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .mcChipActive {
-  background: #38bdf8 !important;
+  background: #ffffff !important;
   color: #020617 !important;
-  border-color: #38bdf8 !important;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  border-color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
   font-weight: 700;
 }
 
@@ -556,9 +556,9 @@
   gap: 8px;
   padding: 8px 18px;
   border-radius: 8px;
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #38bdf8;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -566,13 +566,13 @@
 }
 
 .loadMoreBtn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: rgba(56, 189, 248, 0.5);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
 }
 
 .loadMoreBadge {
-  background: rgba(56, 189, 248, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   padding: 1px 6px;
   border-radius: 99px;
   font-size: 10.5px;

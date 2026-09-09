@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import MiniSkin3D from '../components/MiniSkin3D'
 import LaunchErrorModal from '../components/LaunchErrorModal'
+import { useLanguage } from '../context/LanguageContext'
 import packageInfo from '../../package.json'
 import styles from './Home.module.css'
 
@@ -70,6 +71,7 @@ export default function Home({
   onGameRunningChange,
   cardRef,
 }) {
+  const { t } = useLanguage()
   const [localVersions, setLocalVersions] = useState([])
   const [presetVersions, setPresetVersions] = useState([])
   const [manifestVersions, setManifestVersions] = useState([])
@@ -92,6 +94,14 @@ export default function Home({
   // Checkboxes
   const [delayedLaunch, setDelayedLaunch] = useState(false)
   const [forceUpdate, setForceUpdate] = useState(false)
+  const [playtimeStats, setPlaytimeStats] = useState({ totalPlaytimeMs: 0 })
+
+  const loadPlaytimeStats = async () => {
+    try {
+      const stats = await window.vibe?.getPlaytimeStats?.()
+      if (stats) setPlaytimeStats(stats)
+    } catch (e) {}
+  }
 
   const dropdownRef = useRef(null)
   const profileMenuRef = useRef(null)
@@ -120,6 +130,7 @@ export default function Home({
 
   useEffect(() => {
     loadVersions()
+    loadPlaytimeStats()
 
     // Listen for live progress with monotonic smoothing (never jumps backwards!)
     if (window.vibe?.onGameProgress) {
@@ -132,7 +143,7 @@ export default function Home({
           if (total > 0) {
             const rawPct = Math.min(100, Math.round((current / total) * 100))
             phaseCalculated = Math.round((rawPct / 100) * 25)
-            phaseText = `Загрузка компонентов: ${rawPct}%`
+            phaseText = t('home_phase_components', { pct: rawPct })
           }
         } else if (evt.type === 'progress' && evt.data) {
           const { task, total, type } = evt.data
@@ -140,13 +151,13 @@ export default function Home({
 
           if (type === 'natives' || type === 'classes' || type === 'download' || type === 'libraries') {
             phaseCalculated = 25 + Math.round((rawPct / 100) * 40)
-            phaseText = total > 0 ? `Библиотеки: ${task}/${total}` : 'Подготовка библиотек...'
+            phaseText = total > 0 ? t('home_phase_libraries_count', { task, total }) : t('home_phase_libraries_prep')
           } else if (type === 'assets') {
             phaseCalculated = 65 + Math.round((rawPct / 100) * 27)
-            phaseText = total > 0 ? `Текстуры и звуки: ${task}/${total}` : 'Подготовка ресурсов...'
+            phaseText = total > 0 ? t('home_phase_resources_count', { task, total }) : t('home_phase_resources_prep')
           } else {
             phaseCalculated = Math.round((rawPct / 100) * 90)
-            phaseText = total > 0 ? `Файлы: ${task}/${total}` : 'Подготовка файлов...'
+            phaseText = total > 0 ? t('home_phase_files_count', { task, total }) : t('home_phase_files_prep')
           }
         } else if (evt.type === 'status' && evt.text) {
           phaseText = evt.text
@@ -176,7 +187,7 @@ export default function Home({
         if (log.type === 'out' && log.text) {
           maxSeenProgress.current = 100
           setProgressPct(100)
-          setStatus('Игра запущена!')
+          setStatus(t('home_game_running_status'))
           setTimeout(() => {
             setProgressPct(null)
           }, 1200)
@@ -206,7 +217,13 @@ export default function Home({
   const loadVersions = async () => {
     setLoading(true)
     try {
-      const saved = await window.vibe?.storeGet('lastVersion')
+      let saved = await window.vibe?.storeGet('lastVersion')
+      if (!saved) {
+        try {
+          const ls = localStorage.getItem('vibelauncher_last_version')
+          if (ls) saved = JSON.parse(ls)
+        } catch (e) {}
+      }
       
       // 1. Scan local versions in .minecraft/versions
       const localRes = await window.vibe?.getLocalVersions()
@@ -257,7 +274,7 @@ export default function Home({
     setRefreshingVersions(true)
     try {
       await loadVersions()
-      setStatus('Каталог версий обновлен')
+      setStatus(t('home_versions_updated'))
       setTimeout(() => setStatus(''), 2500)
     } catch (err) {
       console.error(err)
@@ -268,24 +285,24 @@ export default function Home({
 
   const handleLaunch = async () => {
     if (!profile) {
-      setStatus('Сначала введите никнейм')
+      setStatus(t('home_enter_nick_first'))
       onLoginRequest()
       setTimeout(() => setStatus(''), 3500)
       return
     }
     if (!selected) {
-      setStatus('Выберите версию игры')
+      setStatus(t('home_select_version_first'))
       return
     }
 
     setLaunching(true)
     maxSeenProgress.current = 0
     setProgressPct(0)
-    setStatus(!isInstalled ? 'Установка клиента...' : 'Запуск...')
+    setStatus(!isInstalled ? t('home_installing_client') : t('home_launching_game'))
 
     if (delayedLaunch) {
       for (let i = 3; i > 0; i--) {
-        setStatus(`Отложенный запуск (${i} сек)...`)
+        setStatus(t('home_delayed_launch_status', { seconds: i }))
         await new Promise((r) => setTimeout(r, 1000))
       }
     }
@@ -314,11 +331,11 @@ export default function Home({
       })
 
       if (result?.ok) {
-        setStatus('Игра завершена')
+        setStatus(t('home_game_finished'))
         // Automatically refresh local versions in case a newly installed version is now in .minecraft/versions
         await loadVersions()
       } else {
-        const err = result?.error || 'Произошла неизвестная ошибка, о которой мы не знаем :( Попробуйте исправить сами.'
+        const err = result?.error || t('home_unknown_error')
         setStatus(err.length > 45 ? err.substring(0, 42) + '...' : err)
         console.error('Launch error:', result)
         setLaunchErrorData({
@@ -330,7 +347,7 @@ export default function Home({
         setShowErrorModal(true)
       }
     } catch (err) {
-      setStatus('Ошибка: ' + err.message)
+      setStatus(t('home_error_prefix') + ': ' + err.message)
       setLaunchErrorData({
         version: selected?.label || selected?.id,
         reason: err.message,
@@ -372,6 +389,9 @@ export default function Home({
     setShowVersionDropdown(false)
     setVersionSearch('')
     window.vibe?.storeSet('lastVersion', v)
+    try {
+      localStorage.setItem('vibelauncher_last_version', JSON.stringify(v))
+    } catch (e) {}
   }
 
   // Search filtering
@@ -420,7 +440,7 @@ export default function Home({
                 type="button"
                 className={styles.avatarMainBtn}
                 onClick={() => setShowProfileDropdown((v) => !v)}
-                title="Меню профиля"
+                title={t('home_profile_menu')}
               >
                 <img
                   src={userAvatarSrc}
@@ -434,25 +454,26 @@ export default function Home({
 
               <button
                 type="button"
-                className={styles.profileNickBtn}
+                className={styles.selectBtn}
                 onClick={() => setShowProfileDropdown((v) => !v)}
+                title={t('home_profile_menu')}
               >
                 <div className={styles.fieldLeft}>
                   <span className={styles.fieldText}>{profile.username}</span>
                   {profile.authType === 'microsoft' || profile.type === 'microsoft' ? (
-                    <span className={styles.badgeMicrosoft} title="Официальная лицензия Microsoft">
+                    <span className={styles.badgeMicrosoft} title={t('home_badge_microsoft_title')}>
                       <span className={styles.dotMicrosoft} />
-                      Лицензия
+                      {t('home_badge_license')}
                     </span>
                   ) : profile.authType === 'elyby' ? (
-                    <span className={styles.badgeElyBy} title="Ely.by Аккаунт">
+                    <span className={styles.badgeElyBy} title={t('home_badge_elyby_title')}>
                       <span className={styles.dotElyBy} />
                       Ely.by
                     </span>
                   ) : (
-                    <span className={styles.badgeOffline} title="Офлайн режим (Пиратка)">
+                    <span className={styles.badgeOffline} title={t('home_badge_offline_title')}>
                       <span className={styles.dotOffline} />
-                      Офлайн
+                      {t('home_badge_offline')}
                     </span>
                   )}
                 </div>
@@ -473,7 +494,7 @@ export default function Home({
             >
               <div className={styles.fieldLeft}>
                 <User size={16} strokeWidth={1.8} className={styles.fieldIcon} />
-                <span className={styles.fieldTextPlaceholder}>Напишите свой Никнейм</span>
+                <span className={styles.fieldTextPlaceholder}>{t('home_enter_nickname_ph')}</span>
               </div>
               <LogIn size={15} strokeWidth={1.8} className={styles.chevron} />
             </button>
@@ -495,23 +516,23 @@ export default function Home({
                 </div>
 
                 <div className={styles.menuHeaderRight}>
-                  <span className={styles.menuTitle}>Аккаунт</span>
+                  <span className={styles.menuTitle}>{t('accounts')}</span>
                   <span className={styles.menuNick}>{profile?.username}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                     {profile.authType === 'microsoft' || profile.type === 'microsoft' ? (
                       <span className={styles.badgeMicrosoft}>
                         <span className={styles.dotMicrosoft} />
-                        Лицензия
+                        {t('account_type_microsoft')}
                       </span>
                     ) : profile.authType === 'elyby' ? (
                       <span className={styles.badgeElyBy}>
                         <span className={styles.dotElyBy} />
-                        Ely.by
+                        {t('account_type_elyby')}
                       </span>
                     ) : (
                       <span className={styles.badgeOffline}>
                         <span className={styles.dotOffline} />
-                        Офлайн
+                        {t('account_type_offline')}
                       </span>
                     )}
                   </div>
@@ -521,7 +542,7 @@ export default function Home({
               {/* Saved accounts list for 1-click switching */}
               {accounts && accounts.length > 0 && (
                 <div className={styles.accountsSection}>
-                  <div className={styles.accountsTitle}>Сохранённые аккаунты ({accounts.length})</div>
+                  <div className={styles.accountsTitle}>{t('home_saved_accounts', { count: accounts.length })}</div>
                   <div className={styles.accountsList}>
                     {accounts.map((acc, idx) => {
                       const isActive =
@@ -538,7 +559,7 @@ export default function Home({
                               setShowProfileDropdown(false)
                             }
                           }}
-                          title={isActive ? 'Текущий активный аккаунт' : `Переключиться на ${acc.username}`}
+                          title={isActive ? t('home_active_account_tip') : t('home_switch_to_account', { name: acc.username })}
                         >
                           <img
                             src={acc.avatarUrl || `https://mc-heads.net/avatar/${encodeURIComponent(acc.username)}/32`}
@@ -552,14 +573,14 @@ export default function Home({
                             <span className={styles.accountRowNick}>{acc.username}</span>
                             <span className={styles.accountRowType}>
                               {acc.authType === 'microsoft'
-                                ? '🟢 Лицензия'
+                                ? '🟢 ' + t('account_type_microsoft')
                                 : acc.authType === 'elyby'
-                                ? '🔵 Ely.by'
-                                : '⚪ Офлайн'}
+                                ? '🔵 ' + t('account_type_elyby')
+                                : '⚪ ' + t('account_type_offline')}
                             </span>
                           </div>
                           {isActive ? (
-                            <span className={styles.accountActiveBadge} title="Активный аккаунт">
+                            <span className={styles.accountActiveBadge} title={t('home_active_account_tip')}>
                               <Check size={12} strokeWidth={2.5} />
                             </span>
                           ) : (
@@ -570,7 +591,7 @@ export default function Home({
                                 e.stopPropagation()
                                 if (onDeleteAccount) onDeleteAccount(acc)
                               }}
-                              title="Удалить из сохранённых"
+                              title={t('home_delete_account_tip')}
                             >
                               <Trash2 size={12} />
                             </button>
@@ -591,7 +612,7 @@ export default function Home({
                 }}
               >
                 <Plus size={14} strokeWidth={2} />
-                <span>Добавить / Сменить аккаунт</span>
+                <span>{t('home_add_account')}</span>
               </button>
               <button
                 type="button"
@@ -599,7 +620,7 @@ export default function Home({
                 onClick={handleLogout}
               >
                 <LogOut size={14} strokeWidth={1.8} />
-                <span>Выйти из аккаунта</span>
+                <span>{t('home_logout')}</span>
               </button>
             </div>
           )}
@@ -634,7 +655,7 @@ export default function Home({
               type="button"
               className={`${styles.refreshVersionsBtn} ${refreshingVersions ? styles.refreshVersionsBtnSpin : ''}`}
               onClick={handleRefreshVersions}
-              title="Обновить каталог версий (пересканировать папку versions)"
+              title={t('home_refresh_versions_tip')}
               disabled={loading || refreshingVersions}
             >
               <RotateCw size={15} strokeWidth={2} />
@@ -648,7 +669,7 @@ export default function Home({
                 <Search size={14} className={styles.searchIcon} />
                 <input
                   type="text"
-                  placeholder="Поиск версии..."
+                  placeholder={t('home_search_versions')}
                   value={versionSearch}
                   onChange={(e) => setVersionSearch(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
@@ -660,7 +681,7 @@ export default function Home({
                 {/* Section 1: Local / Installed Versions */}
                 {filteredLocal.length > 0 && (
                   <>
-                    <div className={styles.groupHeader}>📁 Установленные и свои версии</div>
+                    <div className={styles.groupHeader}>{t('home_installed_versions')}</div>
                     {filteredLocal.map((v, idx) => (
                       <button
                         key={'loc-' + v.id + idx}
@@ -687,7 +708,7 @@ export default function Home({
                 {/* Section 2: Popular Presets */}
                 {filteredPresets.length > 0 && (
                   <>
-                    <div className={styles.groupHeader}>⚡ Популярные сборки</div>
+                    <div className={styles.groupHeader}>{t('home_popular_presets')}</div>
                     {filteredPresets.map((v, idx) => (
                       <button
                         key={'pre-' + v.id + v.type + idx}
@@ -714,7 +735,7 @@ export default function Home({
                 {/* Section 3: Official Mojang Releases */}
                 {filteredManifest.length > 0 && (
                   <>
-                    <div className={styles.groupHeader}>🌐 Официальные релизы</div>
+                    <div className={styles.groupHeader}>{t('home_official_releases')}</div>
                     {filteredManifest.map((v, idx) => (
                       <button
                         key={'man-' + v.id + idx}
@@ -738,7 +759,7 @@ export default function Home({
                 )}
 
                 {!hasAnyResults && (
-                  <div className={styles.noResults}>Версии не найдены</div>
+                  <div className={styles.noResults}>{t('home_no_versions_found')}</div>
                 )}
               </div>
 
@@ -748,10 +769,10 @@ export default function Home({
                   type="button"
                   className={styles.dropdownFooterBtn}
                   onClick={handleOpenVersionsFolder}
-                  title="Открыть папку versions в проводнике"
+                  title={t('home_open_versions_folder')}
                 >
                   <Folder size={13} />
-                  <span>Папка версий</span>
+                  <span>{t('home_open_versions_folder')}</span>
                 </button>
                 <button
                   type="button"
@@ -760,10 +781,10 @@ export default function Home({
                     setShowVersionDropdown(false)
                     onNavigate('versions')
                   }}
-                  title="Открыть менеджер библиотек и загрузок"
+                  title={t('home_versions_library')}
                 >
                   <Download size={13} />
-                  <span>Библиотека</span>
+                  <span>{t('home_versions_library')}</span>
                 </button>
               </div>
             </div>
@@ -772,7 +793,7 @@ export default function Home({
 
         {/* Row 3: Two Checkboxes with Info Badges and Tooltips */}
         <div className={styles.checkboxContainer}>
-          <label className={styles.checkboxLabel} title="Запускает 3-секундный таймер перед стартом игры, чтобы успеть отменить или подготовиться">
+          <label className={styles.checkboxLabel} title={t('home_delayed_launch_tip')}>
             <input
               type="checkbox"
               checked={delayedLaunch}
@@ -782,11 +803,11 @@ export default function Home({
             <span className={styles.checkboxCustom}>
               <Check size={12} strokeWidth={2.6} className={styles.checkMark} />
             </span>
-            <span className={styles.checkboxText}>Отложенный запуск</span>
-            <span className={styles.helpBadge} title="Задержка 3 секунды перед стартом игры">?</span>
+            <span className={styles.checkboxText}>{t('home_delayed_launch')}</span>
+            <span className={styles.helpBadge} title={t('home_delayed_launch_help')}>?</span>
           </label>
 
-          <label className={styles.checkboxLabel} title="Принудительно очищает файлы версии и скачивает чистый клиент и библиотеки заново">
+          <label className={styles.checkboxLabel} title={t('home_force_update_tip')}>
             <input
               type="checkbox"
               checked={forceUpdate}
@@ -796,8 +817,8 @@ export default function Home({
             <span className={styles.checkboxCustom}>
               <Check size={12} strokeWidth={2.6} className={styles.checkMark} />
             </span>
-            <span className={styles.checkboxText}>Обновить клиент</span>
-            <span className={styles.helpBadge} title="Принудительно перекачивает файлы клиента при сбоях">?</span>
+            <span className={styles.checkboxText}>{t('home_force_update')}</span>
+            <span className={styles.helpBadge} title={t('home_force_update_help')}>?</span>
           </label>
         </div>
 
@@ -812,18 +833,19 @@ export default function Home({
                 <div className={styles.launchHudPulseDot} />
                 <span className={styles.launchHudHumanText}>
                   {(() => {
-                    if (!status) return !isInstalled ? 'Подготовка к установке клиента...' : 'Подготовка к погружению в игру...'
-                    if (status.includes('Ассет') || status.includes('assets') || status.includes('Текстуры')) {
-                      return progressPct ? `Загрузка текстур и звуков (${progressPct}%)` : 'Загрузка ресурсов игры...'
+                    if (!status) return !isInstalled ? t('home_hud_prep_install') : t('home_hud_prep_launch')
+                    const sLower = status.toLowerCase()
+                    if (sLower.includes('ассет') || sLower.includes('assets') || sLower.includes('текстур') || sLower.includes('sound')) {
+                      return progressPct ? t('home_hud_assets_pct', { pct: progressPct }) : t('home_hud_assets')
                     }
-                    if (status.includes('Библиот') || status.includes('natives')) {
-                      return 'Проверка и распаковка библиотек...'
+                    if (sLower.includes('библиот') || sLower.includes('librar') || sLower.includes('native')) {
+                      return t('home_hud_natives')
                     }
-                    if (status.includes('Java')) {
-                      return 'Настройка среды выполнения Java...'
+                    if (sLower.includes('java')) {
+                      return t('home_hud_java')
                     }
-                    if (status.includes('Запуск') || status.includes('запущ') || status.includes('игра')) {
-                      return 'Всё готово! Запуск игрового клиента...'
+                    if (sLower.includes('запуск') || sLower.includes('запущ') || sLower.includes('игра') || sLower.includes('launch') || sLower.includes('run')) {
+                      return t('home_hud_ready')
                     }
                     return status
                   })()}
@@ -855,18 +877,18 @@ export default function Home({
               <div className={styles.launchBtnContent}>
                 <Loader2 size={16} className={styles.spin} />
                 <span>
-                  {!isInstalled ? 'Установка клиента...' : 'Запуск игрового процесса...'}
+                  {!isInstalled ? t('home_installing') : t('home_launching')}
                 </span>
               </div>
             ) : !isInstalled ? (
               <div className={styles.launchBtnContent}>
                 <Download size={17} strokeWidth={2.2} />
-                <span>Установить</span>
+                <span>{t('home_install')}</span>
               </div>
             ) : (
               <div className={styles.launchBtnContent}>
                 <Play size={17} strokeWidth={2.2} fill="currentColor" />
-                <span>Запустить</span>
+                <span>{t('home_play')}</span>
               </div>
             )}
 
@@ -879,60 +901,58 @@ export default function Home({
           </button>
         </div>
 
-        {/* Row 5: 7 Toolbar Square Glass Buttons with Tooltips */}
+        {/* Row 5: 5 Toolbar Square Glass Buttons with Tooltips */}
         <div className={styles.toolBar}>
-
-
-          <div className={styles.toolBtnWrap} data-tooltip="Моды, шейдеры и текстуры">
+          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_mods')}>
             <button
               type="button"
               className={styles.toolBtn}
               onClick={() => onNavigate('mods')}
-              aria-label="Моды и шейдеры"
+              aria-label={t('home_tooltip_mods')}
             >
               <Puzzle size={16} strokeWidth={1.8} />
             </button>
           </div>
 
-          <div className={styles.toolBtnWrap} data-tooltip="Каталог версий">
+          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_versions')}>
             <button
               type="button"
               className={styles.toolBtn}
               onClick={() => onNavigate('versions')}
-              aria-label="Каталог версий"
+              aria-label={t('home_tooltip_versions')}
             >
               <Layers size={16} strokeWidth={1.8} />
             </button>
           </div>
 
-          <div className={styles.toolBtnWrap} data-tooltip="Папка игры (.minecraft)">
+          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_folder')}>
             <button
               type="button"
               className={styles.toolBtn}
               onClick={handleOpenFolder}
-              aria-label="Папка игры"
+              aria-label={t('home_tooltip_folder')}
             >
               <Folder size={16} strokeWidth={1.8} />
             </button>
           </div>
 
-          <div className={styles.toolBtnWrap} data-tooltip="Настройки">
+          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_settings')}>
             <button
               type="button"
               className={styles.toolBtn}
               onClick={() => onNavigate('settings')}
-              aria-label="Настройки"
+              aria-label={t('home_tooltip_settings')}
             >
               <SlidersHorizontal size={16} strokeWidth={1.8} />
             </button>
           </div>
 
-          <div className={styles.toolBtnWrap} data-tooltip="О лаунчере">
+          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_about')}>
             <button
               type="button"
               className={styles.toolBtn}
               onClick={() => setShowInfoModal(true)}
-              aria-label="О лаунчере"
+              aria-label={t('home_tooltip_about')}
             >
               <Info size={16} strokeWidth={1.8} />
             </button>
@@ -942,7 +962,7 @@ export default function Home({
 
       {/* Bottom Elongated Glass Pill Banner */}
       <div className={styles.bottomBanner}>
-        <span>Спасибо за использование нашего лаунчера</span>
+        <span>{t('home_bottom_banner')}</span>
       </div>
 
       {/* Info Modal */}
@@ -961,44 +981,53 @@ export default function Home({
             </div>
             <div className={styles.infoBody}>
               <div className={styles.infoRow}>
-                <span>Версия лаунчера:</span>
+                <span>{t('info_app_version')}</span>
                 <b>v{packageInfo.version}</b>
               </div>
               <div className={styles.infoRow}>
-                <span>Режим скинов:</span>
-                <b>Ely.by / Офлайн</b>
+                <span>{t('info_skin_mode')}</span>
+                <b>{t('info_skin_mode_val')}</b>
               </div>
               <div className={styles.infoRow}>
-                <span>Папка версий:</span>
+                <span>{t('info_versions_folder')}</span>
                 <b>.minecraft/versions</b>
               </div>
               <div className={styles.infoRow}>
-                <span>Кастомные сборки:</span>
-                <b>Поддерживаются</b>
+                <span>{t('info_custom_builds')}</span>
+                <b>{t('info_supported')}</b>
               </div>
+              {playtimeStats?.totalPlaytimeMs > 0 && (
+                <div className={styles.infoRow}>
+                  <span>Время в игре:</span>
+                  <b>
+                    {Math.floor(playtimeStats.totalPlaytimeMs / 3600000)} ч{' '}
+                    {Math.floor((playtimeStats.totalPlaytimeMs % 3600000) / 60000)} мин
+                  </b>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
               <button
                 type="button"
                 className={styles.infoOkBtn}
                 style={{
-                  background: 'rgba(56, 189, 248, 0.2)',
-                  borderColor: 'rgba(56, 189, 248, 0.4)',
-                  color: '#38bdf8',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
                 }}
                 onClick={() => {
                   setShowInfoModal(false)
                   onNavigate('changelog')
                 }}
               >
-                Список изменений
+                {t('info_changelog_btn')}
               </button>
               <button
                 type="button"
                 className={styles.infoOkBtn}
                 onClick={() => setShowInfoModal(false)}
               >
-                ОК
+                {t('ok')}
               </button>
             </div>
           </div>
