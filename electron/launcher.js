@@ -587,8 +587,15 @@ async function launchMinecraft(opts, onLog, onProgress) {
 
   function extractBaseMinecraftVersion(versionStr, data) {
     if (data?.inheritsFrom) return data.inheritsFrom
+    const modpackMetaPath = path.join(rootDir, 'versions', versionStr, '.vibelauncher_modpack.json')
+    if (fs.existsSync(modpackMetaPath)) {
+      try {
+        const mpMeta = JSON.parse(fs.readFileSync(modpackMetaPath, 'utf8'))
+        if (mpMeta?.mcVersion) return String(mpMeta.mcVersion).replace(/_/g, '.')
+      } catch (e) {}
+    }
     const testStr = `${versionStr} ${data?.id || ''}`
-    const match = testStr.match(/(\d+\.\d+(?:\.\d+)?)/)
+    const match = testStr.replace(/_/g, '.').match(/(\d+\.\d+(?:\.\d+)?)/)
     if (match) return match[1]
     return versionStr
   }
@@ -907,12 +914,8 @@ async function launchMinecraft(opts, onLog, onProgress) {
   // Resolve accurate, version-compatible Java runtime (Java 8, 17, or 21)
   let resolvedJava = 'java'
   try {
-    if (javaMode === 'manual' && javaPath && javaPath.trim() && fs.existsSync(javaPath.trim())) {
-      resolvedJava = javaPath.trim()
-      console.log(`[Launcher] Using user manual Java: ${resolvedJava}`)
-    } else {
-      resolvedJava = await resolveJavaRuntime(baseMcVersion, null, rootDir, onProgress, localData)
-    }
+    const customOverride = (javaMode === 'manual' && javaPath && javaPath.trim()) ? javaPath.trim() : null
+    resolvedJava = await resolveJavaRuntime(baseMcVersion, customOverride, rootDir, onProgress, localData)
   } catch (jErr) {
     console.warn('[Launcher] Error resolving Java runtime:', jErr.message)
     resolvedJava = findJavaExecutable(javaPath)

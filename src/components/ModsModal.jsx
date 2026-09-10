@@ -152,7 +152,7 @@ function RenderMarkdown({ content }) {
   return <div className={styles.markdownBody}>{elements}</div>
 }
 
-export default function ModsModal({ activeVersion, localVersions = [], onClose }) {
+export default function ModsModal({ activeVersion, localVersions = [], onClose, onSelectVersion }) {
   const { t } = useLanguage()
   const [tab, setTab] = useState('mod')
   const [searchQuery, setSearchQuery] = useState('')
@@ -185,26 +185,64 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
 
   const searchTimeoutRef = useRef(null)
 
-  // Extract base Minecraft version from versionId (e.g. "fabric-loader-0.16.10-1.16.5" -> "1.16.5")
+  // Listen to live installation progress from Electron
+  useEffect(() => {
+    if (window.vibe?.onModInstallProgress) {
+      window.vibe.onModInstallProgress((data) => {
+        if (data?.task) {
+          setInstallStatus((prev) => {
+            const keys = Object.keys(prev)
+            if (keys.length === 0) return prev
+            const activeKey = keys.find((k) => prev[k]?.loading) || keys[keys.length - 1]
+            if (!activeKey) return prev
+            return {
+              ...prev,
+              [activeKey]: {
+                ...prev[activeKey],
+                loading: true,
+                progress: data.current !== undefined ? data.current : prev[activeKey].progress,
+                text: data.task,
+              },
+            }
+          })
+        }
+      })
+    }
+    return () => {
+      window.vibe?.offModInstallProgress?.()
+    }
+  }, [])
+
+  // Extract base Minecraft version from versionId (e.g. "fabric-loader-0.16.10-1.16.5" -> "1.16.5", modpack -> modpackMeta.mcVersion)
   const getMcVersionOnly = (id) => {
     if (!id) return ''
-    if (id.startsWith('fabric-loader-')) {
-      const parts = id.split('-')
-      return parts[parts.length - 1]
+    const targetObj = localVersions.find((v) => v.id === id) || (activeVersion?.id === id ? activeVersion : null)
+    if (targetObj?.modpackMeta?.mcVersion) {
+      return String(targetObj.modpackMeta.mcVersion).replace(/_/g, '.')
     }
-    if (id.startsWith('forge-')) {
-      const parts = id.split('-')
-      return parts[parts.length - 1]
+    if (targetObj?.baseVersion) {
+      return String(targetObj.baseVersion).replace(/_/g, '.')
     }
-    if (id.startsWith('neoforge-')) {
+    if (id.startsWith('fabric-loader-') || id.startsWith('forge-') || id.startsWith('neoforge-')) {
       const parts = id.split('-')
-      return parts[parts.length - 1]
+      const candidate = parts[parts.length - 1]
+      return candidate.replace(/_/g, '.')
     }
-    const match = id.match(/(1\.\d+(\.\d+)?)/)
-    return match ? match[1] : id
+    const match = id.replace(/_/g, '.').match(/(1\.\d+(?:\.\d+)?)/)
+    if (match) return match[1]
+    return /^1\.\d+/.test(id) ? id : ''
   }
 
   const mcVersion = getMcVersionOnly(targetVersionId)
+
+  // Auto-sync loader when target version or modpack changes
+  useEffect(() => {
+    const targetObj = localVersions.find((v) => v.id === targetVersionId) || (activeVersion?.id === targetVersionId ? activeVersion : null)
+    const ldr = targetObj?.modpackMeta?.loader || targetObj?.type
+    if (ldr && ['fabric', 'forge', 'neoforge', 'quilt'].includes(ldr.toLowerCase())) {
+      setSelectedLoader(ldr.toLowerCase())
+    }
+  }, [targetVersionId, localVersions, activeVersion])
 
   // Always load installed list on start & when target version changes
   useEffect(() => {
@@ -255,7 +293,8 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
       const res = await window.vibe?.searchMods({
         query: query,
         type: tab,
-        mcVersion: mcVersion,
+        // For modpacks, do NOT filter by mcVersion so user can browse and install all modpacks!
+        mcVersion: tab === 'modpack' ? undefined : mcVersion,
         loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
         limit: 30,
       })
@@ -297,12 +336,14 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
     setDetailsVersions([])
     setDetailsTab('description')
 
+    const isModpackProject = tab === 'modpack' || hit.projectType === 'modpack'
+
     try {
       const [detRes, vRes] = await Promise.all([
         window.vibe?.getModDetails(hit.id || hit.slug),
         window.vibe?.getModVersions({
           slugOrId: hit.id || hit.slug,
-          mcVersion,
+          mcVersion: isModpackProject ? undefined : mcVersion,
           loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
           type: tab,
         }),
@@ -339,24 +380,44 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
     if (hit.slug && installedInfo.slugs?.includes(hit.slug.toLowerCase())) return true
     if (hit.slug && installedInfo.fileNames?.some((fn) => fn.includes(hit.slug.toLowerCase())))
       return true
+    if (tab === 'modpack' || hit.projectType === 'modpack') {
+      const isLocalModpack = localVersions.some(
+        (v) =>
+          (v.isModpack || v.type === 'modpack') &&
+          (v.modpackMeta?.id === hit.id ||
+            (v.modpackMeta?.slug && hit.slug && v.modpackMeta.slug.toLowerCase() === hit.slug.toLowerCase()) ||
+            (hit.slug && v.id.toLowerCase().includes(hit.slug.toLowerCase())) ||
+            (hit.title && v.name && v.name.toLowerCase().includes(hit.title.toLowerCase())))
+      )
+      if (isLocalModpack) return true
+    }
     return false
   }
 
   const handleInstall = async (hit, specificVersion = null) => {
     const pId = hit.id
+    const isModpackProject = tab === 'modpack' || hit.projectType === 'modpack'
+
     setInstallStatus((prev) => ({
       ...prev,
-      [pId]: { loading: true, progress: 0, done: false, text: t('mods_state_searching') },
+      [pId]: {
+        loading: true,
+        progress: 0,
+        done: false,
+        text: isModpackProject ? 'Подготовка сборки...' : t('mods_state_searching'),
+      },
     }))
 
     try {
       let file = null
+      let chosenVersionObj = specificVersion
+
       if (specificVersion?.file?.url) {
         file = specificVersion.file
       } else {
         const vRes = await window.vibe?.getModVersions({
           slugOrId: hit.slug || pId,
-          mcVersion: mcVersion,
+          mcVersion: isModpackProject ? undefined : mcVersion,
           loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
           type: tab,
         })
@@ -365,8 +426,8 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
           throw new Error(t('mods_err_no_version', { version: mcVersion }))
         }
 
-        const latestVer = vRes.versions[0]
-        file = latestVer.file
+        chosenVersionObj = vRes.versions[0]
+        file = chosenVersionObj.file
       }
 
       if (!file || !file.url) {
@@ -375,24 +436,64 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
 
       setInstallStatus((prev) => ({
         ...prev,
-        [pId]: { loading: true, progress: 50, done: false, text: t('mods_state_downloading') },
+        [pId]: {
+          loading: true,
+          progress: 20,
+          done: false,
+          text: isModpackProject ? 'Загрузка пакета (.mrpack)...' : t('mods_state_downloading'),
+        },
       }))
 
-      const installRes = await window.vibe?.installModFile({
-        fileUrl: file.url,
-        fileName: file.filename,
-        versionId: targetVersionId,
-        type: tab,
-        projectId: hit.id,
-        projectSlug: hit.slug,
-        projectTitle: hit.title,
-      })
+      let installRes
+      if (isModpackProject) {
+        installRes = await window.vibe?.installModpack({
+          fileUrl: file.url,
+          fileName: file.filename,
+          projectId: hit.id,
+          projectSlug: hit.slug,
+          projectTitle: hit.title,
+          projectIcon: hit.icon,
+          specificVersion: chosenVersionObj,
+        })
+      } else {
+        installRes = await window.vibe?.installModFile({
+          fileUrl: file.url,
+          fileName: file.filename,
+          versionId: targetVersionId,
+          type: tab,
+          projectId: hit.id,
+          projectSlug: hit.slug,
+          projectTitle: hit.title,
+          dependencies: chosenVersionObj?.dependencies,
+          mcVersion: mcVersion,
+          loader: selectedLoader,
+        })
+      }
 
       if (installRes?.ok) {
         setInstallStatus((prev) => ({
           ...prev,
-          [pId]: { loading: false, progress: 100, done: true, text: t('mods_state_installed') },
+          [pId]: {
+            loading: false,
+            progress: 100,
+            done: true,
+            text: isModpackProject ? 'Сборка установлена!' : t('mods_state_installed'),
+          },
         }))
+
+        // If modpack, auto-select it as the active version in the launcher
+        if (isModpackProject && onSelectVersion && installRes.versionId) {
+          onSelectVersion({
+            id: installRes.versionId,
+            label: installRes.label,
+            type: 'modpack',
+            baseVersion: installRes.baseVersion,
+            isLocal: true,
+            isModpack: true,
+            modpackMeta: installRes.modpackMeta,
+          })
+        }
+
         await loadInstalled()
       } else {
         throw new Error(installRes?.error || t('mods_err_write_failed'))
@@ -426,12 +527,86 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
   const handleDelete = async (item) => {
     if (!window.confirm(t('mods_confirm_delete', { name: item.name }))) return
     try {
-      const res = await window.vibe?.deleteModFile(item.path)
+      const res = await window.vibe?.deleteModFile(item.path, targetVersionId)
       if (res?.ok) {
         await loadInstalled()
       }
     } catch (err) {
       console.error('Delete mod error:', err)
+    }
+  }
+
+  const handleDeleteHit = async (e, hit) => {
+    e?.stopPropagation?.()
+    if (!hit) return
+    const isModpackProject = tab === 'modpack' || hit.projectType === 'modpack'
+
+    if (isModpackProject) {
+      // Find matching installed modpack from localVersions
+      const match = localVersions.find(
+        (v) =>
+          (v.isModpack || v.type === 'modpack') &&
+          (v.id.includes(hit.slug || '') ||
+            v.label?.toLowerCase().includes(hit.title?.toLowerCase() || '') ||
+            v.modpackMeta?.id === hit.id ||
+            v.modpackMeta?.slug === hit.slug)
+      )
+      if (match) {
+        if (!window.confirm(`Вы действительно хотите удалить сборку «${hit.title || match.label}»?`)) return
+        try {
+          const res = await window.vibe?.deleteVersion(match.id)
+          if (res?.ok) {
+            setInstallStatus((prev) => {
+              const copy = { ...prev }
+              delete copy[hit.id]
+              return copy
+            })
+            await loadInstalled()
+          } else {
+            alert(res?.error || 'Не удалось удалить сборку')
+          }
+        } catch (err) {
+          alert('Ошибка при удалении сборки: ' + err.message)
+        }
+      } else {
+        // Clear status if folder already removed
+        setInstallStatus((prev) => {
+          const copy = { ...prev }
+          delete copy[hit.id]
+          return copy
+        })
+        await loadInstalled()
+      }
+    } else {
+      // Mod / shader / resourcepack / datapack
+      const match = installedItems.find(
+        (it) =>
+          it.name?.toLowerCase().includes(hit.slug?.toLowerCase() || '') ||
+          (hit.title && it.name?.toLowerCase().includes(hit.title.toLowerCase().replace(/\s+/g, '')))
+      )
+      if (match) {
+        if (!window.confirm(`Удалить «${match.name}»?`)) return
+        try {
+          const res = await window.vibe?.deleteModFile(match.path, targetVersionId)
+          if (res?.ok) {
+            setInstallStatus((prev) => {
+              const copy = { ...prev }
+              delete copy[hit.id]
+              return copy
+            })
+            await loadInstalled()
+          }
+        } catch (err) {
+          alert('Ошибка при удалении: ' + err.message)
+        }
+      } else {
+        setInstallStatus((prev) => {
+          const copy = { ...prev }
+          delete copy[hit.id]
+          return copy
+        })
+        await loadInstalled()
+      }
     }
   }
 
@@ -540,32 +715,50 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
                 </div>
               </div>
 
-              {/* Header Install Button */}
-              <button
-                type="button"
-                className={`${styles.installBtn} ${
-                  activeHitInstalled ? styles.installBtnDone : ''
-                } ${activeHitStatus?.loading ? styles.installBtnLoading : ''}`}
-                onClick={() => handleInstall(activeHit)}
-                disabled={activeHitStatus?.loading}
-              >
-                {activeHitStatus?.loading ? (
-                  <>
-                    <Loader2 size={13} className={styles.spin} />
-                    <span>{activeHitStatus.text || t('mods_downloading')}</span>
-                  </>
-                ) : activeHitInstalled ? (
-                  <>
-                    <Check size={14} />
-                    <span>{t('mods_installed_btn')}</span>
-                  </>
-                ) : (
-                  <>
-                    <Download size={14} />
-                    <span>{t('mods_download_btn')}</span>
-                  </>
+              {/* Header Install & Delete Actions */}
+              <div className={styles.detailsHeaderActions}>
+                <button
+                  type="button"
+                  className={`${styles.installBtn} ${
+                    activeHitInstalled ? styles.installBtnDone : ''
+                  } ${activeHitStatus?.loading ? styles.installBtnLoading : ''}`}
+                  onClick={() => handleInstall(activeHit)}
+                  disabled={activeHitStatus?.loading}
+                >
+                  {activeHitStatus?.loading ? (
+                    <>
+                      <Loader2 size={13} className={styles.spin} />
+                      <span>{activeHitStatus.text || t('mods_downloading')}</span>
+                    </>
+                  ) : activeHitInstalled ? (
+                    <>
+                      <Check size={14} />
+                      <span>{t('mods_installed_btn')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      <span>
+                        {tab === 'modpack' || activeHit?.projectType === 'modpack'
+                          ? 'Установить сборку'
+                          : t('mods_download_btn')}
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {activeHitInstalled && (
+                  <button
+                    type="button"
+                    className={styles.detailsDeleteBtn}
+                    onClick={(e) => handleDeleteHit(e, activeHit)}
+                    title={tab === 'modpack' ? 'Удалить сборку' : 'Удалить мод'}
+                  >
+                    <Trash2 size={14} />
+                    <span>Удалить</span>
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
 
             {/* Sub-Navigation Tabs */}
@@ -680,7 +873,11 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
                             disabled={isInstalling}
                           >
                             <Download size={13} />
-                            <span>{t('mods_details_install_version')}</span>
+                            <span>
+                              {tab === 'modpack' || activeHit?.projectType === 'modpack'
+                                ? 'Установить сборку'
+                                : t('mods_details_install_version')}
+                            </span>
                           </button>
                         </div>
                       )
@@ -1084,35 +1281,48 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose }
                               ))}
                             </div>
 
-                            <button
-                              type="button"
-                              className={`${styles.installBtn} ${
-                                isInstalled ? styles.installBtnDone : ''
-                              } ${status?.loading ? styles.installBtnLoading : ''}`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleInstall(hit)
-                              }}
-                              disabled={status?.loading}
-                              title={isInstalled ? t('mods_already_installed_tip') : t('mods_download_install_tip')}
-                            >
-                              {status?.loading ? (
-                                <>
-                                  <Loader2 size={13} className={styles.spin} />
-                                  <span>{status.text || t('mods_downloading')}</span>
-                                </>
-                              ) : isInstalled ? (
-                                <>
-                                  <Check size={14} />
-                                  <span>{t('mods_installed_btn')}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Download size={14} />
-                                  <span>{t('mods_download_btn')}</span>
-                                </>
+                            <div className={styles.cardActionsWrap}>
+                              <button
+                                type="button"
+                                className={`${styles.installBtn} ${
+                                  isInstalled ? styles.installBtnDone : ''
+                                } ${status?.loading ? styles.installBtnLoading : ''}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleInstall(hit)
+                                }}
+                                disabled={status?.loading}
+                                title={isInstalled ? t('mods_already_installed_tip') : t('mods_download_install_tip')}
+                              >
+                                {status?.loading ? (
+                                  <>
+                                    <Loader2 size={13} className={styles.spin} />
+                                    <span>{status.text || t('mods_downloading')}</span>
+                                  </>
+                                ) : isInstalled ? (
+                                  <>
+                                    <Check size={14} />
+                                    <span>{t('mods_installed_btn')}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Download size={14} />
+                                    <span>{t('mods_download_btn')}</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {isInstalled && (
+                                <button
+                                  type="button"
+                                  className={styles.cardDeleteBtn}
+                                  onClick={(e) => handleDeleteHit(e, hit)}
+                                  title={tab === 'modpack' ? 'Удалить сборку' : 'Удалить мод'}
+                                >
+                                  <Trash2 size={13} />
+                                </button>
                               )}
-                            </button>
+                            </div>
                           </div>
                         </div>
                       )

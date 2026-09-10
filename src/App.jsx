@@ -401,7 +401,15 @@ export default function App() {
         <ModsModal
           activeVersion={selectedVersion || { id: '1.16.5', label: 'Fabric 1.16.5', type: 'fabric' }}
           localVersions={localVersions}
-          onClose={() => setShowModsModal(false)}
+          onSelectVersion={(v) => {
+            setSelectedVersion(v)
+            window.vibe?.storeSet('lastVersion', v)
+            refreshLocalVersions()
+          }}
+          onClose={() => {
+            setShowModsModal(false)
+            refreshLocalVersions()
+          }}
         />
       )}
 

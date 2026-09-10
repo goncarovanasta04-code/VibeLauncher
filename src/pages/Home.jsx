@@ -214,6 +214,9 @@ export default function Home({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  const [versionTab, setVersionTab] = useState('all')
+  const [deletingVersionId, setDeletingVersionId] = useState(null)
+
   const loadVersions = async () => {
     setLoading(true)
     try {
@@ -232,27 +235,39 @@ export default function Home({
 
       // 2. Curated popular presets
       const presets = [
-        { id: '1.16.5', label: 'Fabric 1.16.5', type: 'fabric', loaderVersion: '0.16.10' },
-        { id: '1.16.5', label: 'Vanilla 1.16.5', type: 'vanilla' },
+        { id: '1.21.1', label: 'Fabric 1.21.1', type: 'fabric', loaderVersion: '0.16.10' },
         { id: '1.20.1', label: 'Fabric 1.20.1', type: 'fabric', loaderVersion: '0.16.10' },
+        { id: '1.16.5', label: 'Fabric 1.16.5', type: 'fabric', loaderVersion: '0.16.10' },
+        { id: '1.21.1', label: 'Vanilla 1.21.1', type: 'vanilla' },
         { id: '1.20.1', label: 'Vanilla 1.20.1', type: 'vanilla' },
+        { id: '1.16.5', label: 'Vanilla 1.16.5', type: 'vanilla' },
         { id: '1.12.2', label: 'Vanilla 1.12.2', type: 'vanilla' },
         { id: '1.8.9', label: 'Vanilla 1.8.9', type: 'vanilla' },
       ]
       setPresetVersions(presets)
 
-      // 3. Official releases from manifest
+      // 3. Official releases from manifest (clean standard semantic versions only: 1.21.4, 1.20.1, 1.16.5...)
       const manifestRes = await window.vibe?.getVersionManifest()
-      if (manifestRes?.ok && manifestRes.versions) {
-        const releases = manifestRes.versions
-          .filter((v) => v.type === 'release')
-          .slice(0, 40)
+      if (manifestRes?.ok && Array.isArray(manifestRes.versions)) {
+        const cleanReleases = manifestRes.versions
+          .filter((v) => v.type === 'release' && /^1\.\d+(\.\d+)?$/.test(v.id))
           .map((v) => ({
             id: v.id,
             label: `Vanilla ${v.id}`,
             type: 'vanilla',
           }))
-        setManifestVersions(releases)
+          .sort((a, b) => {
+            const parseParts = (str) => str.split('.').map((n) => parseInt(n, 10) || 0)
+            const pA = parseParts(a.id)
+            const pB = parseParts(b.id)
+            for (let i = 0; i < Math.max(pA.length, pB.length); i++) {
+              const diff = (pB[i] || 0) - (pA[i] || 0)
+              if (diff !== 0) return diff
+            }
+            return 0
+          })
+          .slice(0, 50)
+        setManifestVersions(cleanReleases)
       }
 
       // Initial selection logic: saved > first local > first preset
@@ -267,6 +282,37 @@ export default function Home({
       console.error('[Home] loadVersions error:', e)
     }
     setLoading(false)
+  }
+
+  const handleDeleteLocalVersion = async (e, v) => {
+    e.stopPropagation()
+    const isPack = v.isModpack || v.type === 'modpack'
+    const confirmMsg = isPack
+      ? `Вы действительно хотите удалить сборку «${v.label || v.id}»? Все её моды и файлы будут удалены.`
+      : `Удалить версию Minecraft «${v.label || v.id}»?`
+
+    if (!window.confirm(confirmMsg)) return
+
+    setDeletingVersionId(v.id)
+    try {
+      const res = await window.vibe?.deleteVersion(v.id)
+      if (res?.ok) {
+        await loadVersions()
+        if (selected?.id === v.id) {
+          const fallback = presetVersions[0] || { id: '1.20.1', label: 'Fabric 1.20.1', type: 'fabric' }
+          setSelected(fallback)
+          window.vibe?.storeSet('lastVersion', fallback)
+        }
+        setStatus(isPack ? 'Сборка успешно удалена' : 'Версия удалена')
+        setTimeout(() => setStatus(''), 3000)
+      } else {
+        alert(res?.error || 'Не удалось удалить версию')
+      }
+    } catch (err) {
+      alert('Ошибка при удалении: ' + err.message)
+    } finally {
+      setDeletingVersionId(null)
+    }
   }
 
   const handleRefreshVersions = async (e) => {
@@ -394,23 +440,46 @@ export default function Home({
     } catch (e) {}
   }
 
-  // Search filtering
+  // Search & Tab filtering
   const query = versionSearch.toLowerCase().trim()
   const filterFn = (v) => (v.label || v.id).toLowerCase().includes(query)
 
-  const filteredLocal = localVersions.filter(filterFn)
-  const filteredPresets = presetVersions.filter(
-    (p) => filterFn(p) && !localVersions.some((lv) => lv.id === p.id && lv.type === p.type)
-  )
-  const filteredManifest = manifestVersions.filter(
-    (m) =>
-      filterFn(m) &&
-      !localVersions.some((lv) => lv.id === m.id) &&
-      !presetVersions.some((p) => p.id === m.id && p.type === 'vanilla')
-  )
+  const allModpacks = localVersions.filter((v) => v.isModpack || v.type === 'modpack')
+  const allRegularLocal = localVersions.filter((v) => !v.isModpack && v.type !== 'modpack')
 
-  const hasAnyResults =
-    filteredLocal.length > 0 || filteredPresets.length > 0 || filteredManifest.length > 0
+  const filteredModpacks = allModpacks.filter(filterFn)
+  const filteredLocalRegular = allRegularLocal.filter((v) => {
+    if (!filterFn(v)) return false
+    if (versionTab === 'fabric') return v.type === 'fabric' || v.id.includes('fabric')
+    if (versionTab === 'forge') return v.type === 'forge' || v.id.includes('forge')
+    if (versionTab === 'vanilla') return v.type === 'vanilla'
+    return true
+  })
+
+  const filteredPresets = presetVersions.filter((p) => {
+    if (!filterFn(p)) return false
+    if (localVersions.some((lv) => lv.id === p.id && lv.type === p.type)) return false
+    if (versionTab === 'fabric') return p.type === 'fabric'
+    if (versionTab === 'forge') return p.type === 'forge'
+    if (versionTab === 'vanilla') return p.type === 'vanilla'
+    if (versionTab === 'modpack' || versionTab === 'installed') return false
+    return true
+  })
+
+  const filteredManifest = manifestVersions.filter((m) => {
+    if (!filterFn(m)) return false
+    if (localVersions.some((lv) => lv.id === m.id)) return false
+    if (presetVersions.some((p) => p.id === m.id && p.type === 'vanilla')) return false
+    if (versionTab === 'modpack' || versionTab === 'installed' || versionTab === 'fabric' || versionTab === 'forge') return false
+    return true
+  })
+
+  const showModpacksSection = (versionTab === 'all' || versionTab === 'modpack' || versionTab === 'installed') && filteredModpacks.length > 0
+  const showLocalSection = (versionTab === 'all' || versionTab === 'installed' || versionTab === 'fabric' || versionTab === 'forge' || versionTab === 'vanilla') && filteredLocalRegular.length > 0
+  const showPresetsSection = (versionTab === 'all' || versionTab === 'fabric' || versionTab === 'forge' || versionTab === 'vanilla') && filteredPresets.length > 0
+  const showManifestSection = (versionTab === 'all' || versionTab === 'vanilla') && filteredManifest.length > 0
+
+  const hasAnyResults = showModpacksSection || showLocalSection || showPresetsSection || showManifestSection
 
   const versionDisplayLabel = selected?.label || selected?.id || 'Fabric 1.16.5'
 
@@ -665,6 +734,7 @@ export default function Home({
           {/* Version Dropdown */}
           {showVersionDropdown && (
             <div className={styles.versionDropdown}>
+              {/* Search Bar */}
               <div className={styles.searchBox}>
                 <Search size={14} className={styles.searchIcon} />
                 <input
@@ -675,38 +745,191 @@ export default function Home({
                   onClick={(e) => e.stopPropagation()}
                   autoFocus
                 />
+                {versionSearch && (
+                  <button
+                    type="button"
+                    className={styles.clearSearchBtn}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setVersionSearch('')
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Version Category Filter Tabs */}
+              <div className={styles.filterTabsRow}>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${versionTab === 'all' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('all') }}
+                >
+                  Все
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${styles.filterTabBtnModpack} ${versionTab === 'modpack' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('modpack') }}
+                >
+                  <Sparkles size={11} />
+                  <span>Сборки</span>
+                  {allModpacks.length > 0 && <span className={styles.filterTabBadge}>{allModpacks.length}</span>}
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${versionTab === 'installed' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('installed') }}
+                >
+                  Установленные
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${versionTab === 'fabric' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('fabric') }}
+                >
+                  Fabric
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${versionTab === 'forge' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('forge') }}
+                >
+                  Forge
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.filterTabBtn} ${versionTab === 'vanilla' ? styles.filterTabBtnActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setVersionTab('vanilla') }}
+                >
+                  Vanilla
+                </button>
               </div>
 
               <div className={styles.versionList}>
-                {/* Section 1: Local / Installed Versions */}
-                {filteredLocal.length > 0 && (
+                {/* Section 1: Installed Modpacks (Сборки) */}
+                {showModpacksSection && (
                   <>
-                    <div className={styles.groupHeader}>{t('home_installed_versions')}</div>
-                    {filteredLocal.map((v, idx) => (
-                      <button
-                        key={'loc-' + v.id + idx}
-                        type="button"
-                        className={`${styles.versionItem} ${
-                          selected?.id === v.id && (!selected?.type || selected?.type === v.type)
-                            ? styles.versionItemActive
-                            : ''
-                        }`}
-                        onClick={() => selectVersion(v)}
-                      >
-                        <div className={styles.versionItemLeft}>
-                          <span className={styles.versionItemName}>{v.label || v.id}</span>
-                          <span className={styles.versionItemBadge}>{v.type}</span>
+                    <div className={styles.groupHeader}>
+                      <Sparkles size={11} className={styles.headerModpackIcon} />
+                      <span>{t('home_installed_modpacks') || 'Установленные сборки'}</span>
+                      <span className={styles.groupCountBadge}>{filteredModpacks.length}</span>
+                    </div>
+                    {filteredModpacks.map((v, idx) => {
+                      const isSelected = selected?.id === v.id
+                      const isDeleting = deletingVersionId === v.id
+                      return (
+                        <div
+                          key={'modpack-' + v.id + idx}
+                          className={`${styles.versionItem} ${styles.versionItemModpack} ${
+                            isSelected ? styles.versionItemActive : ''
+                          }`}
+                          onClick={() => selectVersion(v)}
+                        >
+                          <div className={styles.versionItemLeft}>
+                            {v.modpackMeta?.icon ? (
+                              <img
+                                src={v.modpackMeta.icon}
+                                alt={v.label}
+                                className={styles.modpackThumb}
+                                onError={(e) => { e.target.style.display = 'none' }}
+                              />
+                            ) : (
+                              <div className={styles.modpackIconFallback}>
+                                <Sparkles size={13} />
+                              </div>
+                            )}
+                            <div className={styles.versionItemModpackInfo}>
+                              <span className={styles.versionItemName}>{v.modpackMeta?.title || v.label || v.id}</span>
+                              <div className={styles.versionItemModpackMeta}>
+                                <span className={styles.versionItemBadgeModpack}>Сборка</span>
+                                <span className={styles.modpackSubVer}>
+                                  {v.modpackMeta?.mcVersion ? `MC ${v.modpackMeta.mcVersion}` : v.baseVersion || ''}
+                                </span>
+                                {v.modpackMeta?.loader && (
+                                  <span className={styles.modpackLoaderTag}>{v.modpackMeta.loader}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={styles.versionItemRight}>
+                            {isSelected && <Check size={14} className={styles.checkIcon} />}
+                            <button
+                              type="button"
+                              className={styles.versionDeleteBtn}
+                              onClick={(e) => handleDeleteLocalVersion(e, v)}
+                              title="Удалить сборку"
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? <Loader2 size={12} className={styles.spin} /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
                         </div>
-                        {selected?.id === v.id && (
-                          <Check size={14} className={styles.checkIcon} />
-                        )}
-                      </button>
-                    ))}
+                      )
+                    })}
                   </>
                 )}
 
-                {/* Section 2: Popular Presets */}
-                {filteredPresets.length > 0 && (
+                {/* If user clicked 'Сборки' tab but none are installed */}
+                {versionTab === 'modpack' && allModpacks.length === 0 && (
+                  <div className={styles.emptyModpacksPrompt}>
+                    <Sparkles size={28} className={styles.emptyPromptIcon} />
+                    <span className={styles.emptyPromptTitle}>Нет установленных сборок</span>
+                    <span className={styles.emptyPromptText}>Выбирайте и устанавливайте готовые сборки в 1 клик через Модпаки!</span>
+                    <button
+                      type="button"
+                      className={styles.emptyPromptBtn}
+                      onClick={() => {
+                        setShowVersionDropdown(false)
+                        onNavigate('versions')
+                      }}
+                    >
+                      <Download size={13} />
+                      <span>Каталог сборок и модов</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Section 2: Local / Installed Vanilla & Loader Versions */}
+                {showLocalSection && (
+                  <>
+                    <div className={styles.groupHeader}>{t('home_installed_versions')}</div>
+                    {filteredLocalRegular.map((v, idx) => {
+                      const isSelected = selected?.id === v.id && (!selected?.type || selected?.type === v.type)
+                      const isDeleting = deletingVersionId === v.id
+                      return (
+                        <div
+                          key={'loc-' + v.id + idx}
+                          className={`${styles.versionItem} ${isSelected ? styles.versionItemActive : ''}`}
+                          onClick={() => selectVersion(v)}
+                        >
+                          <div className={styles.versionItemLeft}>
+                            <span className={styles.versionItemName}>{v.label || v.id}</span>
+                            <span className={styles.versionItemBadge}>{v.type}</span>
+                          </div>
+
+                          <div className={styles.versionItemRight}>
+                            {isSelected && <Check size={14} className={styles.checkIcon} />}
+                            <button
+                              type="button"
+                              className={styles.versionDeleteBtn}
+                              onClick={(e) => handleDeleteLocalVersion(e, v)}
+                              title="Удалить версию"
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? <Loader2 size={12} className={styles.spin} /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+
+                {/* Section 3: Popular Presets */}
+                {showPresetsSection && (
                   <>
                     <div className={styles.groupHeader}>{t('home_popular_presets')}</div>
                     {filteredPresets.map((v, idx) => (
@@ -732,8 +955,8 @@ export default function Home({
                   </>
                 )}
 
-                {/* Section 3: Official Mojang Releases */}
-                {filteredManifest.length > 0 && (
+                {/* Section 4: Official Mojang Releases */}
+                {showManifestSection && (
                   <>
                     <div className={styles.groupHeader}>{t('home_official_releases')}</div>
                     {filteredManifest.map((v, idx) => (
@@ -758,7 +981,7 @@ export default function Home({
                   </>
                 )}
 
-                {!hasAnyResults && (
+                {!hasAnyResults && versionTab !== 'modpack' && (
                   <div className={styles.noResults}>{t('home_no_versions_found')}</div>
                 )}
               </div>

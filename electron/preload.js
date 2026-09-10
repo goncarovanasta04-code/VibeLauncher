@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('vibe', {
   getModDetails: (slugOrId) => ipcRenderer.invoke('mods:getDetails', slugOrId),
   getModVersions: (params) => ipcRenderer.invoke('mods:getVersions', params),
   installModFile: (opts) => ipcRenderer.invoke('mods:installFile', opts),
+  installModpack: (opts) => ipcRenderer.invoke('mods:installModpack', opts),
   getInstalledMods: (versionId, gameDir) => ipcRenderer.invoke('mods:getInstalled', { versionId, gameDir }),
   toggleModFile: (filePath) => ipcRenderer.invoke('mods:toggle', filePath),
   deleteModFile: (filePath) => ipcRenderer.invoke('mods:delete', filePath),

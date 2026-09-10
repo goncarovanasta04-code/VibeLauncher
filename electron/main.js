@@ -21,6 +21,7 @@ const {
   getModrinthProjectDetails,
   getModrinthProjectVersions,
   installModFile,
+  installModpack,
   getInstalledContent,
   toggleModFile,
   deleteModFile,
@@ -281,6 +282,20 @@ ipcMain.handle('mods:installFile', async (_, opts) => {
     },
     (progress) => {
       mainWindow?.webContents.send('mods:installProgress', progress)
+    }
+  )
+})
+
+ipcMain.handle('mods:installModpack', async (_, opts) => {
+  const settings = store.get('settings') || {}
+  return await installModpack(
+    {
+      ...opts,
+      gameDir: opts.gameDir || settings.gameDir,
+    },
+    (progress) => {
+      mainWindow?.webContents.send('mods:installProgress', progress)
+      mainWindow?.webContents.send('install:progress', progress)
     }
   )
 })

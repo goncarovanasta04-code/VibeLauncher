@@ -354,7 +354,22 @@ function getLocalVersions(customGameDir) {
         const lowerId = versionId.toLowerCase()
         const lowerMain = mainClass.toLowerCase()
 
-        if (lowerId.startsWith('fabric') || lowerMain.includes('fabricmc')) {
+        let isModpack = false
+        let modpackMeta = null
+        const modpackMetaPath = path.join(dirPath, '.vibelauncher_modpack.json')
+        if (fs.existsSync(modpackMetaPath)) {
+          try {
+            modpackMeta = JSON.parse(fs.readFileSync(modpackMetaPath, 'utf8'))
+            isModpack = true
+          } catch (e) {}
+        }
+
+        if (isModpack && modpackMeta) {
+          type = 'modpack'
+          label = modpackMeta.title
+            ? `${modpackMeta.title} (${baseVersion || modpackMeta.mcVersion || 'MC'})`
+            : `Сборка ${versionId}`
+        } else if (lowerId.startsWith('fabric') || lowerMain.includes('fabricmc')) {
           type = 'fabric'
           const loaderMatch = versionId.match(/fabric-loader-([^-]+)-(.+)/)
           if (loaderMatch) {
@@ -422,6 +437,8 @@ function getLocalVersions(customGameDir) {
           jsonPath: jsonPath,
           hasJar: jarExists,
           isLocal: true,
+          isModpack: isModpack,
+          modpackMeta: modpackMeta,
           releaseTime: data.releaseTime || null,
         })
       } catch (err) {
@@ -511,7 +528,7 @@ async function getQuiltVersions(mcVersion) {
  * Downloads and installs a version into <gameDir>/versions with full client jar & assets indexing
  */
 async function installVersion(opts, onProgress) {
-  const { type = 'vanilla', mcVersion, loaderVersion, gameDir } = opts
+  const { type = 'vanilla', mcVersion, loaderVersion, gameDir, customVersionId } = opts
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
   const versionsDir = path.join(rootDir, 'versions')
 
@@ -528,7 +545,7 @@ async function installVersion(opts, onProgress) {
   try {
     if (type.toLowerCase() === 'fabric') {
       const lVer = loaderVersion || '0.16.10'
-      const versionId = `fabric-loader-${lVer}-${mcVersion}`
+      const versionId = customVersionId || `fabric-loader-${lVer}-${mcVersion}`
       const targetDir = path.join(versionsDir, versionId)
       const jsonPath = path.join(targetDir, `${versionId}.json`)
 
@@ -538,6 +555,7 @@ async function installVersion(opts, onProgress) {
       const url = `${FABRIC_META_URL}/versions/loader/${mcVersion}/${lVer}/profile/json`
       const res = await axios.get(url, { timeout: 20000 })
       const fabricData = res.data
+      fabricData.id = versionId
 
       sendProgress(`Получение базовых данных и клиента ${mcVersion}...`, 1, 4)
       await mergeBaseManifest(mcVersion, fabricData, rootDir, versionId, sendProgress)
@@ -549,7 +567,7 @@ async function installVersion(opts, onProgress) {
       return { ok: true, versionId, type: 'fabric', baseVersion: mcVersion, label: `Fabric ${mcVersion} (${lVer})` }
     } else if (type.toLowerCase() === 'quilt') {
       const lVer = loaderVersion || '0.26.0'
-      const versionId = `quilt-loader-${lVer}-${mcVersion}`
+      const versionId = customVersionId || `quilt-loader-${lVer}-${mcVersion}`
       const targetDir = path.join(versionsDir, versionId)
       const jsonPath = path.join(targetDir, `${versionId}.json`)
 
@@ -559,6 +577,7 @@ async function installVersion(opts, onProgress) {
       const url = `${QUILT_META_URL}/versions/loader/${mcVersion}/${lVer}/profile/json`
       const res = await axios.get(url, { timeout: 20000 })
       const quiltData = res.data
+      quiltData.id = versionId
 
       sendProgress(`Получение базовых данных и клиента ${mcVersion}...`, 1, 4)
       await mergeBaseManifest(mcVersion, quiltData, rootDir, versionId, sendProgress)
@@ -569,17 +588,17 @@ async function installVersion(opts, onProgress) {
       sendProgress(`Quilt ${mcVersion} успешно установлен!`, 4, 4)
       return { ok: true, versionId, type: 'quilt', baseVersion: mcVersion, label: `Quilt ${mcVersion} (${lVer})` }
     } else if (type.toLowerCase() === 'vanilla' || type.toLowerCase() === 'snapshot') {
-      const versionId = mcVersion
+      const versionId = customVersionId || mcVersion
       const targetDir = path.join(versionsDir, versionId)
       const jsonPath = path.join(targetDir, `${versionId}.json`)
       const jarPath = path.join(targetDir, `${versionId}.jar`)
 
       sendProgress(`Получение манифеста Minecraft...`, 0, 4)
       const manifest = await fetchMojangManifest()
-      const found = manifest.versions?.find(v => v.id === versionId)
+      const found = manifest.versions?.find(v => v.id === mcVersion)
 
       if (!found || !found.url) {
-        throw new Error(`Версия Minecraft ${versionId} не найдена в манифесте Mojang`)
+        throw new Error(`Версия Minecraft ${mcVersion} не найдена в манифесте Mojang`)
       }
 
       sendProgress(`Загрузка метаданных ${versionId}...`, 1, 4)
@@ -587,13 +606,14 @@ async function installVersion(opts, onProgress) {
 
       const versionRes = await axios.get(found.url, { timeout: 20000 })
       const versionData = versionRes.data
+      versionData.id = versionId
       fs.writeFileSync(jsonPath, JSON.stringify(versionData, null, 2), 'utf8')
 
       // Pre-download asset index
       if (versionData?.assetIndex?.url) {
         const indexDir = path.join(rootDir, 'assets', 'indexes')
         fs.mkdirSync(indexDir, { recursive: true })
-        const idxPath = path.join(indexDir, `${versionData.assetIndex.id || versionId}.json`)
+        const idxPath = path.join(indexDir, `${versionData.assetIndex.id || mcVersion}.json`)
         const aliasPath = path.join(indexDir, `${versionId}.json`)
         if (!fs.existsSync(idxPath)) {
           try {
@@ -619,7 +639,7 @@ async function installVersion(opts, onProgress) {
       }
 
       sendProgress(`Версия ${versionId} успешно установлена!`, 4, 4)
-      return { ok: true, versionId, type: 'vanilla', baseVersion: versionId, label: `Vanilla ${versionId}` }
+      return { ok: true, versionId, type: 'vanilla', baseVersion: mcVersion, label: `Vanilla ${mcVersion}` }
     } else if (type.toLowerCase() === 'forge') {
       sendProgress(`Поиск Forge для ${mcVersion}...`, 0, 5)
       let forgeVer = loaderVersion
@@ -636,7 +656,7 @@ async function installVersion(opts, onProgress) {
         throw new Error(`Не удалось определить версию Forge для Minecraft ${mcVersion}`)
       }
 
-      const versionId = `forge-${mcVersion}-${forgeVer}`
+      const versionId = customVersionId || `forge-${mcVersion}-${forgeVer}`
       const targetDir = path.join(versionsDir, versionId)
       const jsonPath = path.join(targetDir, `${versionId}.json`)
       fs.mkdirSync(targetDir, { recursive: true })

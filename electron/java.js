@@ -37,13 +37,23 @@ function getRequiredJavaVersion(mcVersion, versionData = null) {
     if (!isNaN(jsonMajor) && jsonMajor > 0) return jsonMajor
   }
 
-  // 2. Check inheritsFrom (very common in Fabric/Forge/custom modpack JSONs)
+  // 2. Check modpack metadata or baseVersion
+  if (versionData?.modpackMeta?.mcVersion && typeof versionData.modpackMeta.mcVersion === 'string') {
+    const fromModpack = getRequiredJavaVersion(versionData.modpackMeta.mcVersion, null)
+    if (fromModpack) return fromModpack
+  }
+  if (versionData?.baseVersion && typeof versionData.baseVersion === 'string') {
+    const fromBase = getRequiredJavaVersion(versionData.baseVersion, null)
+    if (fromBase) return fromBase
+  }
+
+  // 3. Check inheritsFrom (very common in Fabric/Forge/custom modpack JSONs)
   if (versionData?.inheritsFrom && typeof versionData.inheritsFrom === 'string') {
     const fromInherits = getRequiredJavaVersion(versionData.inheritsFrom, null)
     if (fromInherits) return fromInherits
   }
 
-  // 3. Check jar specification
+  // 4. Check jar specification
   if (versionData?.jar && typeof versionData.jar === 'string') {
     const fromJar = getRequiredJavaVersion(versionData.jar, null)
     if (fromJar) return fromJar
@@ -51,21 +61,23 @@ function getRequiredJavaVersion(mcVersion, versionData = null) {
 
   if (!mcVersion || typeof mcVersion !== 'string') return 17
 
-  // Clean version string (e.g. "fabric-loader-0.16.10-1.21.1" -> "1.21.1")
-  let cleanVer = mcVersion
-  const fabricMatch = mcVersion.match(/fabric-loader-[^-]+-(.+)/)
+  // Normalize underscores (e.g. 1_20_1 -> 1.20.1)
+  let cleanVer = mcVersion.replace(/_/g, '.')
+
+  // Clean loader prefixes
+  const fabricMatch = cleanVer.match(/fabric-loader-[^-]+-(.+)/)
   if (fabricMatch) cleanVer = fabricMatch[1]
-  const forgeMatch = mcVersion.match(/forge-([^-]+)/)
+  const forgeMatch = cleanVer.match(/forge-([^-]+)/)
   if (forgeMatch) cleanVer = forgeMatch[1]
-  const neoforgeMatch = mcVersion.match(/neoforge-([^-]+)/)
+  const neoforgeMatch = cleanVer.match(/neoforge-([^-]+)/)
   if (neoforgeMatch) cleanVer = neoforgeMatch[1]
 
   // Robustly extract version pattern X.Y or X.Y.Z
-  const verMatch = cleanVer.match(/(\d+\.\d+(?:\.\d+)?)/)
+  const verMatch = cleanVer.match(/(1\.\d+(?:\.\d+)?)/)
   if (verMatch) {
     cleanVer = verMatch[1]
   } else if (versionData?.assets && typeof versionData.assets === 'string') {
-    const assetMatch = versionData.assets.match(/(\d+\.\d+)/)
+    const assetMatch = versionData.assets.match(/(1\.\d+)/)
     if (assetMatch) cleanVer = assetMatch[1]
   }
 
@@ -482,13 +494,24 @@ function findJavaInDirectory(dir) {
 async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, versionData = null) {
   const reqMajor = getRequiredJavaVersion(mcVersion, versionData)
 
-  // 1. User custom path override
+  // 1. User custom path override (with compatibility guard)
   if (customPath && customPath.trim()) {
     const cp = customPath.trim()
     if (fs.existsSync(cp)) {
       const customMajor = probeJavaVersion(cp)
-      console.log(`[Java] Using user-specified Java: ${cp} (major: ${customMajor})`)
-      return cp
+      const isCompatible =
+        customMajor === reqMajor ||
+        (reqMajor === 17 && customMajor >= 17 && customMajor <= 20) ||
+        (reqMajor === 21 && customMajor >= 21 && customMajor <= 24)
+
+      if (isCompatible || !customMajor) {
+        console.log(`[Java] Using user-specified Java: ${cp} (major: ${customMajor})`)
+        return cp
+      } else {
+        console.warn(
+          `[Java] User manual Java (${cp}, Java ${customMajor}) is incompatible with Minecraft ${mcVersion} (requires Java ${reqMajor}). Automatically selecting compatible runtime...`
+        )
+      }
     }
   }
 
