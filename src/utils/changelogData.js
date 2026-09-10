@@ -12,8 +12,123 @@ import {
 
 export const CHANGELOG_DATA = [
   {
-    version: '1.4.1',
+    version: '1.5.0',
     highlight: true,
+    i18n: {
+      ru: {
+        date: 'Сентябрь 2026',
+        title: 'Улучшенный каталог сборок и модов, мульти-профили, авто-подбор Java и оптимизация',
+        tag: 'Новейшее обновление',
+      },
+      en: {
+        date: 'September 2026',
+        title: 'Improved Modpack & Mod Catalog, Multi-Profiles, Auto Java & Low-Spec PC Optimization',
+        tag: 'Latest Update',
+      },
+      uk: {
+        date: 'Вересень 2026',
+        title: 'Покращений каталог збірок та модів, мульти-профілі, авто-підбір Java та оптимізація',
+        tag: 'Новітнє оновлення',
+      },
+      de: {
+        date: 'September 2026',
+        title: 'Verbesserter Modpack- & Mod-Katalog, Multi-Profile, Auto-Java & Low-End-PC-Optimierung',
+        tag: 'Neuestes Update',
+      },
+    },
+    changes: [
+      {
+        icon: Package,
+        type: 'new',
+        i18n: {
+          ru: {
+            title: 'Установка независимых версий и сборок',
+            desc: 'Сборки устанавливаются в отдельные уникальные папки, позволяя скачивать несколько копий или разные версии одного модпака без конфликтов.',
+          },
+          en: {
+            title: 'Independent Modpack & Version Instances',
+            desc: 'Modpacks are installed into dedicated folders, allowing multiple instances and versions without file collisions.',
+          },
+          uk: {
+            title: 'Встановлення незалежних версій та збірок',
+            desc: 'Збірки встановлюються в окремі унікальні папки, що дозволяє завантажувати декілька копій одного модпаку без конфліктів.',
+          },
+          de: {
+            title: 'Unabhängige Modpack- & Versionsinstanzen',
+            desc: 'Modpacks werden in dedizierten Ordnern installiert, was mehrere Instanzen ohne Konflikte ermöglicht.',
+          },
+        },
+      },
+      {
+        icon: Sliders,
+        type: 'fix',
+        i18n: {
+          ru: {
+            title: 'Исправление поиска модов при выбранной сборке',
+            desc: 'Каталог корректно распознает базовую версию Minecraft и автоматически синхронизирует загрузчик (Fabric / Forge / NeoForge).',
+          },
+          en: {
+            title: 'Fixed Mod Searching with Modpack Selected',
+            desc: 'Mod catalog accurately resolves base Minecraft version and automatically syncs the required loader (Fabric / Forge / NeoForge).',
+          },
+          uk: {
+            title: 'Виправлення пошуку модів при обраній збірці',
+            desc: 'Каталог коректно розпізнає базову версію Minecraft та автоматично синхронізує завантажувач.',
+          },
+          de: {
+            title: 'Mod-Suche bei ausgewähltem Modpack behoben',
+            desc: 'Der Mod-Katalog erkennt die Minecraft-Basisversion korrekt und synchronisiert den Loader automatisch.',
+          },
+        },
+      },
+      {
+        icon: Cpu,
+        type: 'new',
+        i18n: {
+          ru: {
+            title: 'Умный авто-подбор и загрузка Java',
+            desc: 'Лаунчер автоматически определяет точную версию Java (8, 16, 17, 21), скачивает её при необходимости и исключает сбои запуска.',
+          },
+          en: {
+            title: 'Smart Java Auto-Selection & Resolution',
+            desc: 'Launcher automatically detects required Java runtime (8, 16, 17, 21), downloads it if missing, and prevents launch crashes.',
+          },
+          uk: {
+            title: 'Розумний авто-підбір та завантаження Java',
+            desc: 'Лаунчер автоматично визначає точну версію Java (8, 16, 17, 21) та виключає помилки запуску.',
+          },
+          de: {
+            title: 'Intelligente Java-Auto-Auswahl',
+            desc: 'Der Launcher erkennt automatisch die erforderliche Java-Laufzeit (8, 16, 17, 21) und verhindert Startfehler.',
+          },
+        },
+      },
+      {
+        icon: Zap,
+        type: 'improvement',
+        i18n: {
+          ru: {
+            title: 'Быстрое удаление версий и Potato PC режим',
+            desc: 'Удаление скачанных сборок и версий в 1 клик прямо из выпадающего списка. Оптимизация лаунчера и параметров Minecraft для слабых ПК.',
+          },
+          en: {
+            title: '1-Click Version Deletion & Potato PC Mode',
+            desc: 'Delete downloaded modpacks and versions directly from the selector. Lightweight Potato PC mode for maximum FPS.',
+          },
+          uk: {
+            title: 'Швидке видалення версій та Potato PC режим',
+            desc: 'Видалення завантажених збірок в 1 клік прямо зі списку. Оптимізація лаунчера для слабких ПК.',
+          },
+          de: {
+            title: '1-Klick Versionslöschung & Potato-PC-Modus',
+            desc: 'Heruntergeladene Modpacks und Versionen direkt im Selektor löschen. Potato-PC-Modus für maximale FPS.',
+          },
+        },
+      },
+    ],
+  },
+  {
+    version: '1.4.1',
     i18n: {
       ru: {
         date: 'Сентябрь 2026',

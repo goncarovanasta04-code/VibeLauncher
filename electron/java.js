@@ -251,8 +251,8 @@ function downloadFile(url, destPath, onProgress, maxRedirects = 8) {
       if (activeTimer) clearTimeout(activeTimer)
     }
 
-    let appVer = '1.4.1'
-    try { appVer = require('../package.json').version || '1.4.1' } catch (e) {}
+    let appVer = '1.5.0'
+    try { appVer = require('../package.json').version || '1.5.0' } catch (e) {}
 
     const makeRequest = (curUrl) => {
       if (redirectCount++ > maxRedirects) {
