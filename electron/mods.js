@@ -10,9 +10,17 @@ function getDefaultGameDir() {
   return path.join(process.env.APPDATA || process.env.HOME || '', '.minecraft')
 }
 
+function getSafeVersionId(versionId) {
+  if (!versionId || typeof versionId !== 'string') return null
+  const cleaned = path.basename(versionId.trim())
+  if (!cleaned || cleaned === '.' || cleaned === '..') return null
+  return cleaned
+}
+
 function getVersionContentDir(rootDir, versionId, contentType, isolateVersionFolders = true) {
-  const baseDir = (versionId && isolateVersionFolders !== false)
-    ? path.join(rootDir, 'versions', versionId)
+  const safeVerId = getSafeVersionId(versionId)
+  const baseDir = (safeVerId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', safeVerId)
     : rootDir
   let sub = 'mods'
   if (contentType === 'resourcepack' || contentType === 'resourcepacks') sub = 'resourcepacks'
@@ -28,8 +36,9 @@ function getVersionContentDir(rootDir, versionId, contentType, isolateVersionFol
 }
 
 function getManifestPath(rootDir, versionId, isolateVersionFolders = true) {
-  const baseDir = (versionId && isolateVersionFolders !== false)
-    ? path.join(rootDir, 'versions', versionId)
+  const safeVerId = getSafeVersionId(versionId)
+  const baseDir = (safeVerId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', safeVerId)
     : rootDir
   return path.join(baseDir, '.vibelauncher_content.json')
 }

@@ -1175,9 +1175,9 @@
 }
 
 .avatarTrigger:hover {
-  transform: scale(1.1);
+  transform: scale(1.08);
   border-color: var(--accent-cyan);
-  box-shadow: none);
+  box-shadow: none;
 }
 
 .userAvatarImg {
@@ -1203,5 +1203,5 @@
 
 .toolBtnHighlight:hover {
   background: rgba(255, 255, 255, 0.15) !important;
-  box-shadow: none) !important;
+  box-shadow: none !important;
 }

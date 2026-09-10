@@ -190,16 +190,16 @@ ipcMain.handle('system:getScreenResolution', () => {
 
 // ─── electron-store IPC (Protected against prototype pollution) ─────────────────
 ipcMain.handle('store:get', (_, key) => {
-  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor')) return undefined
+  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor') || key.includes('prototype')) return undefined
   return store.get(key)
 })
 ipcMain.handle('store:set', (_, key, val) => {
-  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor')) return
+  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor') || key.includes('prototype')) return false
   store.set(key, val)
   return true
 })
 ipcMain.handle('store:delete', (_, key) => {
-  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor')) return false
+  if (typeof key !== 'string' || key.includes('__proto__') || key.includes('constructor') || key.includes('prototype')) return false
   store.delete(key)
   return true
 })

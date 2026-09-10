@@ -36,9 +36,9 @@
   --radius-full: 9999px;
   
   /* Smooth Physics Transitions */
-  --transition-fast: 0.15s ease;
-  --transition-smooth: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-spring: 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-fast: 0.14s ease;
+  --transition-smooth: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-spring: 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * {
@@ -73,6 +73,15 @@ html, body, #root {
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
 }
 
+/* Universal Button Tactile Touch Response */
+button {
+  transition: transform var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 /* Common Inputs with Smooth Inset Depth */
 input[type="text"],
 input[type="password"],
@@ -84,7 +93,7 @@ input[type="number"] {
   padding: 8px 12px;
   font-size: 13px;
   outline: none;
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 /* Light mode glass & inputs overrides for Clean White theme */
@@ -149,20 +158,42 @@ input::placeholder {
   background: rgba(255, 255, 255, 0.4);
 }
 
-/* Animations */
+/* Master Keyframe Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes springModalIn {
   0% {
     opacity: 0;
-    transform: scale(0.94) translateY(14px);
+    transform: scale(0.96) translateY(10px);
   }
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dropdownUnfold {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
   }
 }
 

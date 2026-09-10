@@ -4,13 +4,13 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: overlayFadeIn 150ms ease;
+  animation: overlayFadeIn 180ms ease-out;
 }
 
 @keyframes overlayFadeIn {
@@ -29,14 +29,15 @@
   position: relative;
   background: #0f1115;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.65);
-  animation: modalEnter 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+  animation: modalEnter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
 }
 
 @keyframes modalEnter {
   from {
     opacity: 0;
-    transform: scale(0.98) translateY(6px);
+    transform: scale(0.96) translateY(8px);
   }
   to {
     opacity: 1;
@@ -485,7 +486,7 @@
   cursor: pointer;
   inset: 0;
   background-color: #20242e;
-  transition: 150ms ease;
+  transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -498,15 +499,15 @@
   left: 2px;
   bottom: 2px;
   background: #ffffff;
-  transition: 150ms ease;
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 200ms ease;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .switch input:checked + .slider {
   background: #007aff;
   border-color: #007aff;
-  box-shadow: 0 0 10px rgba(0, 122, 255, 0.4);
+  box-shadow: 0 0 12px rgba(0, 122, 255, 0.45);
 }
 
 .switch input:checked + .slider:before {
