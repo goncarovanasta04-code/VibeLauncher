@@ -1,23 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import TitleBar from './components/TitleBar'
 import Home from './pages/Home'
-import Versions from './pages/Versions'
-import LoginModal from './components/LoginModal'
-import SettingsModal from './components/SettingsModal'
-import ModsModal from './components/ModsModal'
-import ChangelogModal from './components/ChangelogModal'
-import UpdateModal from './components/UpdateModal'
-import ThemesModal from './components/ThemesModal'
-import WelcomeModal from './components/WelcomeModal'
 import AppSplashScreen from './components/AppSplashScreen'
 import Monochrome3DBackground from './components/Monochrome3DBackground'
-import { applyTheme, getCurrentTheme } from './utils/themeManager'
-import LiquidGlassShader from './components/LiquidGlassShader'
+import { applyTheme, applyInterfaceTheme, getCurrentTheme } from './utils/themeManager'
 import bgVideo from './assets/bg.mp4'
 import bgImage from './assets/bg.jpg'
 import packageInfo from '../package.json'
 import { useLanguage } from './context/LanguageContext'
+import { configureUiSounds } from './utils/uiSound'
 import styles from './App.module.css'
+
+const Versions = lazy(() => import('./pages/Versions'))
+const LoginModal = lazy(() => import('./components/LoginModal'))
+const SettingsModal = lazy(() => import('./components/SettingsModal'))
+const ModsModal = lazy(() => import('./components/ModsModal'))
+const ChangelogModal = lazy(() => import('./components/ChangelogModal'))
+const UpdateModal = lazy(() => import('./components/UpdateModal'))
+const ThemesModal = lazy(() => import('./components/ThemesModal'))
+const WelcomeModal = lazy(() => import('./components/WelcomeModal'))
 
 export default function App() {
   const { t } = useLanguage()
@@ -37,6 +38,8 @@ export default function App() {
   const [videoLoaded, setVideoLoaded] = useState(false)
   const [disableVideoBg, setDisableVideoBg] = useState(false)
   const [enableAnimations, setEnableAnimations] = useState(true)
+  const [liquidGlassEnabled, setLiquidGlassEnabled] = useState(false)
+  const [liquidGlassFps, setLiquidGlassFps] = useState(30)
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [currentTheme, setCurrentTheme] = useState(() => getCurrentTheme())
   const [bgLayers, setBgLayers] = useState({
@@ -46,12 +49,17 @@ export default function App() {
   })
   const videoRef = useRef(null)
   const cardRef = useRef(null)
+  const sceneCanvasRef = useRef(null)
 
   const checkSettings = async () => {
     const s = await window.vibe?.storeGet('settings')
+    configureUiSounds(s || {})
+    applyInterfaceTheme(s?.interfaceTheme || 'graphite')
     if (s?.potatoMode) {
       setDisableVideoBg(true)
       setEnableAnimations(false)
+      setLiquidGlassEnabled(false)
+      setLiquidGlassFps(15)
     } else {
       if (s?.disableVideoBg !== undefined) {
         setDisableVideoBg(Boolean(s.disableVideoBg))
@@ -59,8 +67,23 @@ export default function App() {
       if (s?.enableAnimations !== undefined) {
         setEnableAnimations(Boolean(s.enableAnimations))
       }
+      setLiquidGlassEnabled(Boolean(s?.liquidGlass))
+      setLiquidGlassFps(Math.max(15, Math.min(60, Number(s?.liquidGlassFps) || 30)))
     }
   }
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('liquid-glass-enabled', liquidGlassEnabled)
+    return () => document.documentElement.classList.remove('liquid-glass-enabled')
+  }, [liquidGlassEnabled])
+
+  useEffect(() => {
+    const onInterfaceThemeChange = ({ detail }) => {
+      if (detail?.id !== 'graphite') setLiquidGlassEnabled(false)
+    }
+    window.addEventListener('vibe-interface-theme-changed', onInterfaceThemeChange)
+    return () => window.removeEventListener('vibe-interface-theme-changed', onInterfaceThemeChange)
+  }, [])
 
   const refreshLocalVersions = async () => {
     const locRes = await window.vibe?.getLocalVersions()
@@ -264,13 +287,14 @@ export default function App() {
   }
 
   return (
-    <div className={styles.root}>
+    <div className={`${styles.root} ${currentTheme?.category === 'art' ? styles.staticArtTheme : ''}`}>
       {/* 3D Interactive Void Background (Floating 3D wireframe polyhedra & horizon grid) */}
       {(currentTheme?.is3D || currentTheme?.is3DMonochrome) && (
         <Monochrome3DBackground
           paused={isGameRunning || !enableAnimations}
           colorMode={currentTheme?.colorMode || 'monochrome'}
           sceneType={currentTheme?.sceneType || 'minimal-void'}
+          externalCanvasRef={sceneCanvasRef}
         />
       )}
 
@@ -344,6 +368,9 @@ export default function App() {
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           cardRef={cardRef}
+          liquidSourceCanvasRef={sceneCanvasRef}
+          liquidLensEnabled={liquidGlassEnabled && Boolean(currentTheme?.is3D || currentTheme?.is3DMonochrome) && enableAnimations && !isGameRunning}
+          liquidLensFps={liquidGlassFps}
           onGameRunningChange={setIsGameRunning}
           onNavigate={(target) => {
             if (target === 'settings') setShowSettings(true)
@@ -361,6 +388,7 @@ export default function App() {
         />
       </main>
 
+      <Suspense fallback={<div className={styles.modalLoading} aria-label="Loading" />}>
       {/* Login Modal */}
       {showLogin && (
         <LoginModal
@@ -393,6 +421,7 @@ export default function App() {
         <WelcomeModal
           onClose={() => setShowWelcomeModal(false)}
           onOpenLogin={() => setShowLogin(true)}
+          onLiquidGlassChange={setLiquidGlassEnabled}
         />
       )}
 
@@ -452,6 +481,7 @@ export default function App() {
           onClose={() => setAutoUpdateInfo(null)}
         />
       )}
+      </Suspense>
 
       {/* Subtle Version Watermark in Bottom-Right Corner */}
       <div
@@ -470,4 +500,3 @@ export default function App() {
     </div>
   )
 }
-

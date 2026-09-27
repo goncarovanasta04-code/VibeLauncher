@@ -21,7 +21,7 @@ import {
   Flame,
   Compass,
 } from 'lucide-react'
-import { THEMES, applyTheme, getCurrentTheme } from '../utils/themeManager'
+import { THEMES, INTERFACE_THEMES, applyTheme, applyInterfaceTheme, getCurrentTheme } from '../utils/themeManager'
 import Mini3DCanvas from './Mini3DCanvas'
 import bgVideo from '../assets/bg.mp4'
 import styles from './ThemesModal.module.css'
@@ -46,9 +46,14 @@ export default function ThemesModal({ onClose }) {
   const { t } = useLanguage()
   const [selectedThemeId, setSelectedThemeId] = useState(getCurrentTheme().id)
   const [activeFilter, setActiveFilter] = useState('all') // 'all' | '3d' | 'motion' | 'art' | 'minimal'
+  const [themeTab, setThemeTab] = useState('backgrounds')
+  const [interfaceTheme, setInterfaceTheme] = useState(() => localStorage.getItem('vibelauncher_interface_theme') || 'graphite')
   const [hoveredTheme, setHoveredTheme] = useState(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const modalRef = useRef(null)
+  const previewTimerRef = useRef(null)
+  const previewIndexRef = useRef(0)
+  const [isAutoPreviewing, setIsAutoPreviewing] = useState(false)
 
   const handleSelect = (themeId) => {
     setSelectedThemeId(themeId)
@@ -56,12 +61,41 @@ export default function ThemesModal({ onClose }) {
     window.vibe?.storeSet?.('settings.theme', themeId)
   }
 
+  const handleInterfaceTheme = async (id) => {
+    setInterfaceTheme(id)
+    applyInterfaceTheme(id)
+    const settings = (await window.vibe?.storeGet?.('settings')) || {}
+    await window.vibe?.storeSet?.('settings', { ...settings, interfaceTheme: id, liquidGlass: id === 'graphite' ? settings.liquidGlass : false })
+  }
+
+  const stopAutoPreview = () => {
+    if (previewTimerRef.current) window.clearInterval(previewTimerRef.current)
+    previewTimerRef.current = null
+    setIsAutoPreviewing(false)
+  }
+
+  const toggleAutoPreview = () => {
+    if (isAutoPreviewing) return stopAutoPreview()
+    const list = filteredThemes.length ? filteredThemes : THEMES
+    previewIndexRef.current = Math.max(0, list.findIndex((theme) => theme.id === selectedThemeId))
+    const showNextTheme = () => {
+      previewIndexRef.current = (previewIndexRef.current + 1) % list.length
+      handleSelect(list[previewIndexRef.current].id)
+    }
+    setIsAutoPreviewing(true)
+    showNextTheme()
+    previewTimerRef.current = window.setInterval(showNextTheme, 1800)
+  }
+
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
+    return () => {
+      window.removeEventListener('keydown', handleEsc)
+      if (previewTimerRef.current) window.clearInterval(previewTimerRef.current)
+    }
   }, [onClose])
 
   const handleMouseMove = (e) => {
@@ -137,6 +171,12 @@ export default function ThemesModal({ onClose }) {
 
         {/* High-End Segmented Filter Bar */}
         <div className={styles.filterBar}>
+          <button type="button" className={`${styles.filterBtn} ${themeTab === 'backgrounds' ? styles.filterBtnActive : ''}`} onClick={() => setThemeTab('backgrounds')}><ImageIcon size={14} /><span>Фоны</span></button>
+          <button type="button" className={`${styles.filterBtn} ${themeTab === 'interface' ? styles.filterBtnActive : ''}`} onClick={() => setThemeTab('interface')}><Palette size={14} /><span>Интерфейс</span></button>
+          {themeTab === 'backgrounds' && <>
+          <button type="button" className={`${styles.filterBtn} ${styles.autoPreviewBtn} ${isAutoPreviewing ? styles.autoPreviewBtnActive : ''}`} onClick={toggleAutoPreview} title="Плавно показать все темы">
+            {isAutoPreviewing ? <X size={14} /> : <Play size={14} />}<span>{isAutoPreviewing ? 'Стоп' : 'Автопросмотр'}</span>
+          </button>
           <button
             type="button"
             className={`${styles.filterBtn} ${activeFilter === 'all' ? styles.filterBtnActive : ''}`}
@@ -185,10 +225,18 @@ export default function ThemesModal({ onClose }) {
               {t('themes_filter_minimal', { count: THEMES.filter((t) => t.category === 'minimal' && !t.is3D).length })}
             </span>
           </button>
+          </>}
         </div>
 
         {/* Fixed-Row Scrollable Theme Grid */}
-        <div className={styles.themesGrid} onMouseLeave={() => setHoveredTheme(null)}>
+        {themeTab === 'interface' ? (
+          <div className={styles.interfaceGrid}>
+            {INTERFACE_THEMES.map((item) => <button key={item.id} type="button" className={`${styles.interfaceCard} ${interfaceTheme === item.id ? styles.interfaceCardActive : ''}`} onClick={() => handleInterfaceTheme(item.id)}>
+              <span className={`${styles.interfaceSwatch} ${styles[`swatch${item.id[0].toUpperCase()}${item.id.slice(1)}`]}`} />
+              <strong>{item.name}</strong><small>{item.description}</small>{item.id !== 'graphite' && <em>Жидкое стекло выключается</em>}
+            </button>)}
+          </div>
+        ) : <div className={styles.themesGrid} onMouseLeave={() => setHoveredTheme(null)}>
           {filteredThemes.map((theme) => {
             const isActive = selectedThemeId === theme.id
             const IconComponent = ICON_MAP[theme.iconKey] || Sparkles
@@ -334,7 +382,7 @@ export default function ThemesModal({ onClose }) {
               </div>
             )
           })}
-        </div>
+        </div>}
 
         {/* Footer Bar */}
         <div className={styles.footerBar}>

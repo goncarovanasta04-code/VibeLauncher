@@ -82,6 +82,22 @@
   color: #ffffff;
 }
 
+/* iOS-inspired liquid glass shell */
+.overlay { background: rgba(2, 6, 14, .5); backdrop-filter: blur(18px) saturate(130%); -webkit-backdrop-filter: blur(18px) saturate(130%); }
+.modal { border-radius: 25px; background: linear-gradient(145deg, rgba(29, 42, 61, .88), rgba(7, 13, 24, .8)); backdrop-filter: blur(36px) saturate(175%); -webkit-backdrop-filter: blur(36px) saturate(175%); border-color: rgba(255,255,255,.2); box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 32px 84px rgba(0,0,0,.6); }
+.header { background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); border-bottom-color: rgba(255,255,255,.12); }
+.headerIconWrap, .card { background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.035)); border-color: rgba(255,255,255,.15); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+
+/* Neutral liquid glass: quiet material, readable catalog. */
+.overlay { background: rgba(1, 4, 8, .58); backdrop-filter: blur(14px) saturate(112%); -webkit-backdrop-filter: blur(14px) saturate(112%); }
+.modal { border-radius: 28px; background: linear-gradient(145deg, rgba(22,27,33,.79), rgba(6,9,13,.75)); border-color: rgba(238,244,248,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.36), 0 32px 84px rgba(0,0,0,.65); }
+.modal::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: radial-gradient(ellipse 60% 28% at 18% 0%, rgba(255,255,255,.1), transparent 70%); }
+.modal > * { position: relative; z-index: 1; }
+.header, .topControlBar { background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.1); }
+.headerIconWrap, .card, .versionSelectorWrap, .searchWrap, .loaderFilters, .installedFilters { background: linear-gradient(145deg, rgba(245,248,250,.085), rgba(255,255,255,.018)); border-color: rgba(238,243,247,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabActive, .installedFilterBtnActive, .loaderBtnActive { background: rgba(236,241,245,.13) !important; border-color: rgba(245,248,250,.24) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.24) !important; }
+.loaderBtn:disabled { opacity: .38; cursor: not-allowed; }
+
 .title {
   font-size: 15.5px;
   font-weight: 700;
@@ -1365,4 +1381,78 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
   object-fit: contain;
+}
+
+/* Final layer: keep all catalog surfaces in the same neutral glass family. */
+.overlay { background: rgba(1,4,8,.58); backdrop-filter: blur(14px) saturate(112%); -webkit-backdrop-filter: blur(14px) saturate(112%); }
+.modal { border-radius: 28px; background: linear-gradient(145deg, rgba(22,27,33,.79), rgba(6,9,13,.75)); border-color: rgba(238,244,248,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.36), 0 32px 84px rgba(0,0,0,.65); }
+.header, .topControlBar { background: rgba(255,255,255,.025); border-color: rgba(255,255,255,.1); }
+.headerIconWrap, .card, .versionSelectorWrap, .searchWrap, .loaderFilters, .installedFilters { background: linear-gradient(145deg, rgba(245,248,250,.085), rgba(255,255,255,.018)); border-color: rgba(238,243,247,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabActive, .installedFilterBtnActive, .loaderBtnActive { background: rgba(236,241,245,.13) !important; border-color: rgba(245,248,250,.24) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.24) !important; }
+.loaderBtn:disabled { opacity: .38; cursor: not-allowed; }
+
+.header { background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); border-bottom-color: rgba(255,255,255,.12); }
+.card { background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.035)); border-color: rgba(255,255,255,.15); box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+
+/* Catalog layout: no cropped controls, no overlapping native select or cards. */
+.modal { width: min(1080px, 96vw); height: min(720px, 90vh); }
+.header { min-height: 74px; padding: 12px 18px; }
+.headerLeft { min-width: 0; }
+.headerLeft > div:last-child { min-width: 0; }
+.subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.headerRight { flex-shrink: 0; }
+.versionSelectorWrap { min-width: 248px; border-radius: 12px; }
+.versionSelect { min-width: 118px; padding: 3px 22px 3px 2px; }
+.topControlBar { min-height: 52px; padding: 7px 18px; }
+.tabs { min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; }
+.searchFilterRow { min-height: 58px; padding: 9px 18px; background: rgba(2,7,14,.26); }
+.searchWrap { min-width: 240px; max-width: none; }
+.loaderFilters { min-width: 0; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+.loaderFilters::-webkit-scrollbar { display: none; }
+.loaderBtn { flex: 0 0 auto; }
+.body { padding: 16px 18px 20px; background: transparent; }
+.grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; align-items: stretch; }
+.card { min-height: 176px; border-radius: 15px; padding: 14px; overflow: hidden; }
+.cardFooter { margin-top: auto; }
+.cardDesc { min-height: 34px; }
+
+/* Keep the catalog structure quiet: controls are individual pills, not grey bars. */
+.topControlBar, .searchFilterRow { background: transparent; }
+.loaderFilters, .installedFilters { background: transparent; border: 0; box-shadow: none; padding: 2px; }
+.loaderBtn { border-radius: 10px; }
+
+/* Search is one clear glass control, not a dark block inside another block. */
+.searchWrap {
+  flex: 1 1 420px;
+  max-width: 500px;
+  min-height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255,255,255,.105), rgba(255,255,255,.025));
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 6px 18px rgba(0,0,0,.12);
+}
+.searchWrap .searchInput {
+  height: 36px;
+  padding-left: 34px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+.searchWrap:focus-within {
+  border-color: rgba(147,197,253,.72);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.26), 0 0 0 3px rgba(59,130,246,.13);
+}
+.searchWrap .searchInput:focus { background: transparent; border: 0; }
+@media (max-width: 760px) {
+  .modal { height: 94vh; }
+  .header { align-items: flex-start; }
+  .headerRight { gap: 6px; }
+  .versionSelectorWrap { min-width: 0; max-width: 172px; }
+  .versionLabel { display: none; }
+  .topControlBar { align-items: flex-start; flex-direction: column; }
+  .folderActions { display: none; }
+  .searchFilterRow { align-items: stretch; flex-direction: column; gap: 8px; }
+  .grid { grid-template-columns: 1fr; }
 }

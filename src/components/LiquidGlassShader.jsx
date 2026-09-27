@@ -1,234 +1,119 @@
 import { useEffect, useRef } from 'react'
-import bgImageSrc from '../assets/bg.jpg'
 
-export default function LiquidGlassShader({ videoRef, cardRef, disabled = false }) {
+// A small, scoped WebGL lens. It samples the existing background canvas rather
+// than redrawing the whole scene, so the card gets real refraction at a stable
+// cost (30 FPS, DPR capped at 1.5).
+export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled = false, maxFps = 30 }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
-    if (disabled) return
+    // The 3D scene mounts independently from this component. Keep the lens alive
+    // while it is being created instead of falling back permanently if the scene
+    // ref is populated a frame later.
+    if (disabled || !canvasRef.current || !cardRef?.current || !sourceCanvasRef) return
 
     const canvas = canvasRef.current
-    if (!canvas) return
+    const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, antialias: true })
+    if (!gl) return
 
-    const gl =
-      canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, antialias: true }) ||
-      canvas.getContext('experimental-webgl')
-
-    if (!gl) {
-      console.warn('[LiquidGlass] WebGL not supported')
-      return
-    }
-
-    // Vertex shader
-    const vsSource = `
+    const vertexSource = `
       attribute vec2 a_position;
       varying vec2 v_uv;
       void main() {
-        v_uv = (a_position + 1.0) * 0.5;
+        v_uv = a_position * 0.5 + 0.5;
         gl_Position = vec4(a_position, 0.0, 1.0);
       }
     `
 
-    // Fragment shader: True Liquid Glass Generator (Snell's Law, Refraction, SDF Curvature)
-    const fsSource = `
-      precision highp float;
+    const fragmentSource = `
+      precision mediump float;
       varying vec2 v_uv;
-
-      uniform sampler2D u_background;
-      uniform vec2 u_resolution;
-      uniform vec4 u_rect; // x, y, width, height in screen coordinates
+      uniform sampler2D u_source;
+      uniform vec2 u_cardSize;
+      uniform vec2 u_cardOffset;
+      uniform vec2 u_viewSize;
       uniform float u_radius;
 
-      // WebGL Shader Parameters from imggion/liquid-glass-generator:
-      // Refractive Index: 1.37 (eta: 0.730)
-      // Distortion Strength: 0.035
-      // Curvature: 0.74
-      // Edge Sharpness: 0.49
-      // Blur Radius: 3.4px
-
-      const float ETA = 0.729927; // 1.0 / 1.37
-      const float DISTORTION = 0.035;
-      const float CURVATURE = 0.74;
-      const float EDGE_SHARPNESS = 0.49;
-      const float BLUR_RADIUS = 3.4;
-
-      // Signed Distance Field of 2D Rounded Box
-      float sdRoundedBox(vec2 p, vec2 b, float r) {
-        vec2 q = abs(p) - b + r;
-        return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+      float roundedBox(vec2 p, vec2 halfSize, float radius) {
+        vec2 q = abs(p) - halfSize + radius;
+        return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
       }
 
-      // Analytical 2D normal vector of Rounded Box
-      vec2 getBoxNormal2D(vec2 p, vec2 b, float r) {
-        vec2 q = abs(p) - b + r;
-        vec2 grad;
-        if (q.x > 0.0 && q.y > 0.0) {
-          grad = normalize(q) * sign(p);
-        } else if (q.x > q.y) {
-          grad = vec2(sign(p.x), 0.0);
-        } else {
-          grad = vec2(0.0, sign(p.y));
-        }
-        return grad;
-      }
-
-      // Gaussian-disc blur sampler
-      vec4 sampleBlurred(sampler2D tex, vec2 uv, vec2 res, float blur) {
-        vec2 texel = 1.0 / res;
-        vec4 col = vec4(0.0);
-        float total = 0.0;
-        
-        vec2 offsets[9];
-        offsets[0] = vec2(0.0, 0.0);
-        offsets[1] = vec2(1.0, 0.0);
-        offsets[2] = vec2(-1.0, 0.0);
-        offsets[3] = vec2(0.0, 1.0);
-        offsets[4] = vec2(0.0, -1.0);
-        offsets[5] = vec2(0.707, 0.707);
-        offsets[6] = vec2(-0.707, 0.707);
-        offsets[7] = vec2(0.707, -0.707);
-        offsets[8] = vec2(-0.707, -0.707);
-        
-        for (int i = 0; i < 9; i++) {
-          float w = (i == 0) ? 2.5 : 1.0;
-          vec2 sUv = clamp(uv + offsets[i] * texel * blur, 0.0, 1.0);
-          col += texture2D(tex, sUv) * w;
-          total += w;
-        }
-        return col / total;
+      vec2 boxNormal(vec2 p, vec2 halfSize, float radius) {
+        vec2 q = abs(p) - halfSize + radius;
+        if (q.x > 0.0 && q.y > 0.0) return normalize(q) * sign(p);
+        return q.x > q.y ? vec2(sign(p.x), 0.0) : vec2(0.0, sign(p.y));
       }
 
       void main() {
-        vec2 pixelPos = gl_FragCoord.xy;
-        // Flip Y to match screen coords (0,0 at top-left)
-        vec2 screenPixel = vec2(pixelPos.x, u_resolution.y - pixelPos.y);
-        
-        vec2 cardCenter = u_rect.xy + u_rect.zw * 0.5;
-        vec2 cardHalfSize = u_rect.zw * 0.5;
-        vec2 p = screenPixel - cardCenter;
-        
-        float d = sdRoundedBox(p, cardHalfSize, u_radius);
-        
-        // Outside glass box -> discard
-        if (d > 0.5) {
-          discard;
-        }
-        
-        float edgeAlpha = clamp(0.5 - d, 0.0, 1.0);
-        
-        // Normalized texture coordinates (WebGL texture Y goes 0 at bottom to 1 at top)
-        vec2 texUv = gl_FragCoord.xy / u_resolution;
-        
-        // Normal 2D on glass perimeter
-        vec2 norm2D = getBoxNormal2D(p, cardHalfSize, u_radius);
-        
-        // Edge curvature profile
-        float edgeWidth = u_radius * CURVATURE;
-        float t = clamp(-d / max(edgeWidth, 1.0), 0.0, 1.0);
-        
-        // Height slope based on Edge Sharpness (0.49) & Distortion Strength (0.035)
-        float profileSlope = (1.0 - pow(t, EDGE_SHARPNESS)) * DISTORTION * 10.0;
-        
-        // 3D Glass Surface Normal (meniscus curve)
-        vec3 N = normalize(vec3(-norm2D * profileSlope, 1.0));
-        vec3 I = vec3(0.0, 0.0, -1.0); // Eye ray straight in
-        
-        // Snell's Law Refraction
-        vec3 R = refract(I, N, ETA);
-        if (length(R) == 0.0) {
-          R = reflect(I, N);
-        }
-        
-        vec2 uvOffset = (R.xy / max(abs(R.z), 0.001)) * DISTORTION * (1.0 - t * 0.6);
-        // Note: norm2D is in screen space where +Y is down, whereas texture +Y is up
-        uvOffset.y = -uvOffset.y;
-        
-        // Chromatic dispersion (RGB split with Snell's law)
-        vec3 R_r = refract(I, N, ETA * 0.985);
-        vec3 R_b = refract(I, N, ETA * 1.015);
-        vec2 off_r = (R_r.xy / max(abs(R_r.z), 0.001)) * DISTORTION * (1.0 - t * 0.6);
-        vec2 off_b = (R_b.xy / max(abs(R_b.z), 0.001)) * DISTORTION * (1.0 - t * 0.6);
-        off_r.y = -off_r.y;
-        off_b.y = -off_b.y;
-        
-        float colR = sampleBlurred(u_background, clamp(texUv + off_r, 0.0, 1.0), u_resolution, BLUR_RADIUS).r;
-        float colG = sampleBlurred(u_background, clamp(texUv + uvOffset, 0.0, 1.0), u_resolution, BLUR_RADIUS).g;
-        float colB = sampleBlurred(u_background, clamp(texUv + off_b, 0.0, 1.0), u_resolution, BLUR_RADIUS).b;
-        vec3 glassColor = vec3(colR, colG, colB);
-        
-        // Fresnel reflection & Apple-style top specular bevel
-        vec3 lightDir = normalize(vec3(0.0, 1.0, 0.9));
-        vec3 H = normalize(lightDir - I);
-        float fresnel = pow(1.0 - max(dot(-I, N), 0.0), 3.0) * 0.4;
-        float specular = pow(max(dot(N, H), 0.0), 36.0) * 0.65;
-        
-        // Upper edge illumination
-        float topEdge = max(0.0, -norm2D.y) * (1.0 - t) * 0.45;
-        
-        // Light crystal tint
-        vec3 finalColor = mix(glassColor, vec3(1.0), 0.05);
-        finalColor += vec3(fresnel * 0.5 + specular + topEdge);
-        
-        gl_FragColor = vec4(finalColor, edgeAlpha);
+        vec2 local = (v_uv - 0.5) * u_cardSize;
+        vec2 halfSize = u_cardSize * 0.5;
+        float d = roundedBox(local, halfSize, u_radius);
+        if (d > 0.0) discard;
+
+        vec2 normal = boxNormal(local, halfSize, u_radius);
+        float edge = 1.0 - smoothstep(-24.0, -1.0, d);
+        vec2 sourceUv = (u_cardOffset + v_uv * u_cardSize) / u_viewSize;
+
+        // A clear, thick lens: the centre is a shallow convex volume, while
+        // its rim has stronger refraction. Unlike backdrop-filter this does
+        // not blur the scene; it bends the actual 3D canvas beneath the UI.
+        vec2 unit = local / halfSize;
+        vec2 opticalAxis = normalize(unit + vec2(0.0001));
+        float radial = clamp(1.0 - dot(unit, unit), 0.0, 1.0);
+        float bulge = pow(radial, 0.62);
+        vec2 lensOffset = opticalAxis * bulge * 7.0 / u_viewSize;
+        lensOffset += normal * edge * 6.0 / u_viewSize;
+
+        // Keep dispersion nearly imperceptible: the material is neutral glass,
+        // not a blue cyber-panel.
+        vec2 chroma = normal * edge * 0.14 / u_viewSize;
+        vec2 refractedUv = clamp(sourceUv - lensOffset, 0.0, 1.0);
+        vec3 refracted;
+        refracted.r = texture2D(u_source, clamp(refractedUv + chroma, 0.0, 1.0)).r;
+        refracted.g = texture2D(u_source, refractedUv).g;
+        refracted.b = texture2D(u_source, clamp(refractedUv - chroma, 0.0, 1.0)).b;
+
+        float topSheen = pow(clamp(1.0 - distance(v_uv, vec2(0.24, 0.03)) * 1.12, 0.0, 1.0), 4.0);
+        float fresnel = pow(1.0 - bulge, 2.5);
+        vec3 rimGlow = vec3(0.9, 0.92, 0.93) * (edge * 0.12 + fresnel * 0.022);
+        // Tinted clear glass keeps the refraction visible without letting a
+        // bright object behind it overpower the launcher controls.
+        vec3 color = refracted * (0.38 + edge * 0.08) + rimGlow + vec3(1.0) * topSheen * 0.055;
+        gl_FragColor = vec4(color, 1.0);
       }
     `
 
-    // Compile helper
-    const createShader = (type, source) => {
+    const makeShader = (type, source) => {
       const shader = gl.createShader(type)
       gl.shaderSource(shader, source)
       gl.compileShader(shader)
       if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        console.error('[LiquidGlass] Shader compile error:', gl.getShaderInfoLog(shader))
         gl.deleteShader(shader)
         return null
       }
       return shader
     }
 
-    const vs = createShader(gl.VERTEX_SHADER, vsSource)
-    const fs = createShader(gl.FRAGMENT_SHADER, fsSource)
-    if (!vs || !fs) return
+    const vertex = makeShader(gl.VERTEX_SHADER, vertexSource)
+    const fragment = makeShader(gl.FRAGMENT_SHADER, fragmentSource)
+    if (!vertex || !fragment) return
 
     const program = gl.createProgram()
-    gl.attachShader(program, vs)
-    gl.attachShader(program, fs)
+    gl.attachShader(program, vertex)
+    gl.attachShader(program, fragment)
     gl.linkProgram(program)
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
 
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      console.error('[LiquidGlass] Program link error:', gl.getProgramInfoLog(program))
-      return
-    }
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
 
     gl.useProgram(program)
+    const position = gl.getAttribLocation(program, 'a_position')
+    gl.enableVertexAttribArray(position)
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0)
 
-    // Full screen quad buffer
-    const posBuffer = gl.createBuffer()
-    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer)
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([
-        -1, -1,
-         1, -1,
-        -1,  1,
-        -1,  1,
-         1, -1,
-         1,  1,
-      ]),
-      gl.STATIC_DRAW
-    )
-
-    const aPosition = gl.getAttribLocation(program, 'a_position')
-    gl.enableVertexAttribArray(aPosition)
-    gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0)
-
-    // Uniforms
-    const uResolution = gl.getUniformLocation(program, 'u_resolution')
-    const uRect = gl.getUniformLocation(program, 'u_rect')
-    const uRadius = gl.getUniformLocation(program, 'u_radius')
-    const uBackground = gl.getUniformLocation(program, 'u_background')
-
-    // Texture setup
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -236,123 +121,68 @@ export default function LiquidGlassShader({ videoRef, cardRef, disabled = false 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-    // Default 1x1 pixel while loading
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      1,
-      1,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      new Uint8Array([10, 20, 35, 255])
-    )
-
-    // Load fallback image into texture
-    const img = new Image()
-    img.src = bgImageSrc
-    img.onload = () => {
-      if (!videoRef?.current || videoRef.current.readyState < 2) {
-        gl.bindTexture(gl.TEXTURE_2D, texture)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
-      }
+    const uniforms = {
+      source: gl.getUniformLocation(program, 'u_source'),
+      cardSize: gl.getUniformLocation(program, 'u_cardSize'),
+      cardOffset: gl.getUniformLocation(program, 'u_cardOffset'),
+      viewSize: gl.getUniformLocation(program, 'u_viewSize'),
+      radius: gl.getUniformLocation(program, 'u_radius'),
     }
 
-    let animationId = null
-    let running = true
+    let frameId = null
+    let lastFrame = 0
+    let active = true
 
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const w = window.innerWidth
-      const h = window.innerHeight
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr
-        canvas.height = h * dpr
-        gl.viewport(0, 0, canvas.width, canvas.height)
+    const render = (now) => {
+      if (!active) return
+      frameId = requestAnimationFrame(render)
+      const frameInterval = 1000 / Math.max(15, Math.min(60, Number(maxFps) || 30))
+      if (document.hidden || now - lastFrame < frameInterval) return
+      lastFrame = now
+
+      const source = sourceCanvasRef.current
+      const card = cardRef.current
+      if (!source || !card || source.width === 0 || source.height === 0) return
+      const rect = card.getBoundingClientRect()
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      const width = Math.max(1, Math.round(rect.width * dpr))
+      const height = Math.max(1, Math.round(rect.height * dpr))
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width
+        canvas.height = height
+        gl.viewport(0, 0, width, height)
       }
-    }
 
-    const render = () => {
-      if (!running) return
-
-      resize()
-
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const w = window.innerWidth
-      const h = window.innerHeight
-
-      // Update background texture from video if ready
-      const video = videoRef?.current
-      if (video && video.readyState >= 2 && !video.paused && !video.ended) {
+      try {
         gl.bindTexture(gl.TEXTURE_2D, texture)
-        try {
-          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
-        } catch (e) {}
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+      } catch (error) {
+        return
       }
 
       gl.useProgram(program)
-      gl.uniform2f(uResolution, w * dpr, h * dpr)
-
-      // Get target card coordinates
-      let rx = (w - 340) * 0.5
-      let ry = (h - 380) * 0.5
-      let rw = 340
-      let rh = 380
-      let rRadius = 26.0
-
-      if (cardRef?.current) {
-        const rect = cardRef.current.getBoundingClientRect()
-        rx = rect.left
-        ry = rect.top
-        rw = rect.width
-        rh = rect.height
-        const cs = window.getComputedStyle(cardRef.current)
-        rRadius = parseFloat(cs.borderRadius) || 26.0
-      }
-
-      gl.uniform4f(uRect, rx * dpr, ry * dpr, rw * dpr, rh * dpr)
-      gl.uniform1f(uRadius, rRadius * dpr)
-
-      gl.activeTexture(gl.TEXTURE0)
-      gl.bindTexture(gl.TEXTURE_2D, texture)
-      gl.uniform1i(uBackground, 0)
-
+      gl.uniform1i(uniforms.source, 0)
+      gl.uniform2f(uniforms.cardSize, rect.width, rect.height)
+      gl.uniform2f(uniforms.cardOffset, rect.left, rect.top)
+      gl.uniform2f(uniforms.viewSize, window.innerWidth, window.innerHeight)
+      gl.uniform1f(uniforms.radius, parseFloat(window.getComputedStyle(card).borderRadius) || 26)
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
-
-      animationId = requestAnimationFrame(render)
     }
 
-    render()
-
+    frameId = requestAnimationFrame(render)
     return () => {
-      running = false
-      if (animationId) cancelAnimationFrame(animationId)
-      try {
-        gl.deleteProgram(program)
-        gl.deleteShader(vs)
-        gl.deleteShader(fs)
-        gl.deleteTexture(texture)
-        gl.deleteBuffer(posBuffer)
-      } catch (e) {}
+      active = false
+      if (frameId) cancelAnimationFrame(frameId)
+      gl.deleteTexture(texture)
+      gl.deleteBuffer(buffer)
+      gl.deleteProgram(program)
+      gl.deleteShader(vertex)
+      gl.deleteShader(fragment)
     }
-  }, [disabled, videoRef, cardRef])
+  }, [cardRef, disabled, sourceCanvasRef, maxFps])
 
   if (disabled) return null
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        pointerEvents: 'none',
-        zIndex: 1, // Directly over the video and beneath the UI HTML elements
-      }}
-    />
-  )
+  return <canvas ref={canvasRef} className="liquid-lens" aria-hidden="true" />
 }

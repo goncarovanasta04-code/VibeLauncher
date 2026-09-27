@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import styles from './ModsModal.module.css'
 import { useLanguage } from '../context/LanguageContext'
+import { playUiSound } from '../utils/uiSound'
 
 const TABS = [
   { id: 'mod', labelKey: 'mods_tab_mods', icon: Puzzle },
@@ -160,6 +161,8 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
     activeVersion?.type === 'forge' ? 'forge' : 'fabric'
   )
   const [targetVersionId, setTargetVersionId] = useState(activeVersion?.id || '1.16.5')
+  const [modpackMcVersion, setModpackMcVersion] = useState(activeVersion?.baseVersion || activeVersion?.modpackMeta?.mcVersion || '1.20.1')
+  const [modpackVersions, setModpackVersions] = useState([])
 
   // Search Results
   const [hits, setHits] = useState([])
@@ -184,6 +187,16 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   const [installedFilter, setInstalledFilter] = useState('all')
 
   const searchTimeoutRef = useRef(null)
+  const searchRequestRef = useRef(0)
+
+  useEffect(() => {
+    if (tab !== 'modpack' || modpackVersions.length) return
+    window.vibe?.getVersionManifest?.().then((res) => {
+      if (!res?.ok) return
+      const ids = (res.versions || []).map((entry) => entry.id).filter((id) => /^1\.\d+(?:\.\d+)?$/.test(id))
+      setModpackVersions([...new Set(ids)])
+    }).catch(() => {})
+  }, [tab, modpackVersions.length])
 
   // Listen to live installation progress from Electron
   useEffect(() => {
@@ -234,6 +247,10 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   }
 
   const mcVersion = getMcVersionOnly(targetVersionId)
+  const catalogMcVersion = tab === 'modpack' ? modpackMcVersion : mcVersion
+  const targetVersion = localVersions.find((v) => v.id === targetVersionId) || (activeVersion?.id === targetVersionId ? activeVersion : null)
+  const lockedLoader = (targetVersion?.modpackMeta?.loader || targetVersion?.type || '').toLowerCase()
+  const isLoaderLocked = ['fabric', 'forge', 'neoforge', 'quilt'].includes(lockedLoader)
 
   // Auto-sync loader when target version or modpack changes
   useEffect(() => {
@@ -255,7 +272,11 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
     } else {
       performSearch()
     }
-  }, [tab, selectedLoader, targetVersionId])
+  }, [tab, selectedLoader, targetVersionId, modpackMcVersion])
+
+  useEffect(() => () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+  }, [])
 
   // Handle keyboard ESC: close details view first, or close modal
   useEffect(() => {
@@ -287,18 +308,19 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   }
 
   const performSearch = async (query = searchQuery) => {
+    const requestId = ++searchRequestRef.current
     setLoading(true)
     setSearchError('')
     try {
       const res = await window.vibe?.searchMods({
         query: query,
         type: tab,
-        // For modpacks, do NOT filter by mcVersion so user can browse and install all modpacks!
-        mcVersion: tab === 'modpack' ? undefined : mcVersion,
+        mcVersion: catalogMcVersion,
         loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
         limit: 30,
       })
 
+      if (requestId !== searchRequestRef.current) return
       if (res?.ok) {
         setHits(res.hits || [])
       } else {
@@ -306,9 +328,19 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
         setHits([])
       }
     } catch (err) {
+      if (requestId !== searchRequestRef.current) return
       setSearchError(t('mods_err_search_prefix') + ': ' + err.message)
+    } finally {
+      if (requestId === searchRequestRef.current) setLoading(false)
     }
-    setLoading(false)
+  }
+
+  const handleLoaderChange = (loader) => {
+    if (isLoaderLocked && loader !== lockedLoader) {
+      setSearchError(`Для выбранной версии доступен только ${lockedLoader}. Выберите другую игровую версию, чтобы сменить загрузчик.`)
+      return
+    }
+    setSelectedLoader(loader)
   }
 
   const loadInstalled = async () => {
@@ -343,7 +375,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
         window.vibe?.getModDetails(hit.id || hit.slug),
         window.vibe?.getModVersions({
           slugOrId: hit.id || hit.slug,
-          mcVersion: isModpackProject ? undefined : mcVersion,
+          mcVersion: isModpackProject ? catalogMcVersion : mcVersion,
           loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
           type: tab,
         }),
@@ -417,7 +449,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
       } else {
         const vRes = await window.vibe?.getModVersions({
           slugOrId: hit.slug || pId,
-          mcVersion: isModpackProject ? undefined : mcVersion,
+          mcVersion: isModpackProject ? catalogMcVersion : mcVersion,
           loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
           type: tab,
         })
@@ -471,6 +503,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
       }
 
       if (installRes?.ok) {
+        playUiSound('success')
         setInstallStatus((prev) => ({
           ...prev,
           [pId]: {
@@ -499,6 +532,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
         throw new Error(installRes?.error || t('mods_err_write_failed'))
       }
     } catch (err) {
+      playUiSound('error')
       setInstallStatus((prev) => ({
         ...prev,
         [pId]: { loading: false, progress: 0, done: false, error: err.message, text: t('mods_state_error') },
@@ -942,13 +976,22 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                 <div>
                   <h3 className={styles.title}>{t('mods_modal_title')}</h3>
                   <span className={styles.subtitle}>
-                    {t('mods_modal_subtitle', { version: targetVersionId })}
+                    {tab === 'modpack'
+                      ? `Сборки Modrinth для Minecraft ${catalogMcVersion} — устанавливаются отдельно`
+                      : t('mods_modal_subtitle', { version: targetVersionId })}
                   </span>
                 </div>
               </div>
 
               <div className={styles.headerRight}>
-                {localVersions.length > 1 && (
+                {tab === 'modpack' ? (
+                  <div className={styles.versionSelectorWrap}>
+                    <span className={styles.versionLabel}>Версия Minecraft</span>
+                    <select className={styles.versionSelect} value={modpackMcVersion} onChange={(e) => setModpackMcVersion(e.target.value)}>
+                      {(modpackVersions.length ? modpackVersions : ['1.21.1', '1.20.6', '1.20.4', '1.20.1', '1.19.4', '1.18.2', '1.16.5', '1.12.2']).map((version) => <option key={version} value={version}>{version}</option>)}
+                    </select>
+                  </div>
+                ) : localVersions.length > 1 && (
                   <div className={styles.versionSelectorWrap}>
                     <span className={styles.versionLabel}>{t('mods_version_folder')}</span>
                     <select
@@ -1090,7 +1133,8 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                           className={`${styles.loaderBtn} ${
                             selectedLoader === ld.id ? styles.loaderBtnActive : ''
                           }`}
-                          onClick={() => setSelectedLoader(ld.id)}
+                          onClick={() => handleLoaderChange(ld.id)}
+                          disabled={tab !== 'modpack' && isLoaderLocked && ld.id !== lockedLoader}
                         >
                           {ld.labelKey ? t(ld.labelKey) : ld.label}
                         </button>

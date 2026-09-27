@@ -28,6 +28,19 @@
   min-height: 0;
 }
 
+/* Versions use the same neutral glass rather than a separate blue/grey panel. */
+.panel {
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(22,27,33,.78), rgba(6,9,13,.74)) !important;
+  backdrop-filter: blur(22px) saturate(112%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(112%) !important;
+  border-color: rgba(238,244,248,.22) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.36), 0 30px 76px rgba(0,0,0,.6) !important;
+}
+.header { background: rgba(255,255,255,.025) !important; border-color: rgba(255,255,255,.1) !important; }
+.tabs, .searchInput, .mcVersionInput, .openFolderBtn, .refreshBtn { background: linear-gradient(145deg, rgba(245,248,250,.085), rgba(255,255,255,.018)) !important; border-color: rgba(238,243,247,.14) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabActive { background: rgba(236,241,245,.13) !important; border-color: rgba(245,248,250,.24) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.24) !important; }
+
 /* Header */
 .header {
   display: flex;
@@ -597,3 +610,8 @@
   }
 }
 
+/* Final layer: the standalone versions page follows the same neutral glass. */
+.panel { border-radius: 28px; background: linear-gradient(145deg, rgba(22,27,33,.78), rgba(6,9,13,.74)) !important; backdrop-filter: blur(22px) saturate(112%) !important; -webkit-backdrop-filter: blur(22px) saturate(112%) !important; border-color: rgba(238,244,248,.22) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.36), 0 30px 76px rgba(0,0,0,.6) !important; }
+.header { background: rgba(255,255,255,.025) !important; border-color: rgba(255,255,255,.1) !important; }
+.tabs, .searchInput, .mcVersionInput, .openFolderBtn, .refreshBtn { background: linear-gradient(145deg, rgba(245,248,250,.085), rgba(255,255,255,.018)) !important; border-color: rgba(238,243,247,.14) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+.tabActive { background: rgba(236,241,245,.13) !important; border-color: rgba(245,248,250,.24) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.24) !important; }

@@ -92,7 +92,7 @@ async function setLauncherActivity() {
       largeImageKey: 'icon',
       largeImageText: 'VibeLauncher Next-Gen',
       buttons: [
-        { label: 'Discord Сервер', url: 'https://discord.gg/fAS92DwB8R' },
+        { label: 'Discord Сервер', url: 'https://discord.gg/VC79KJWQQy' },
       ],
       instance: false,
     })
@@ -122,7 +122,7 @@ async function setPlayingActivity({ mcVersion = '1.16.5', type = 'vanilla', user
       smallImageKey: 'icon',
       smallImageText: `Minecraft ${mcVersion}`,
       buttons: [
-        { label: 'Discord Сервер', url: 'https://discord.gg/fAS92DwB8R' },
+        { label: 'Discord Сервер', url: 'https://discord.gg/VC79KJWQQy' },
       ],
       instance: false,
     })

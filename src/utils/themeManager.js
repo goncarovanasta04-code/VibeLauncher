@@ -9,6 +9,14 @@ import minimalBlackBg from '../assets/themes/minimal_black.jpg'
 import minimalWhiteBg from '../assets/themes/minimal_white.jpg'
 import minimal3dBg from '../assets/themes/3d_minimal.jpg'
 
+// Online theme art is intentionally referenced, not bundled: it keeps the
+// installer light and lets a source update its image without an app release.
+// Sources are shown in the theme metadata for attribution.
+const ONLINE_THEME_ART = {
+  end: 'https://www.complementary.dev/assets/img/newScreenshots/both5_endCity.jpg',
+  fortress: 'https://wallpapers.com/images/high/minecraft-nether-fortress-ablaze-ceye2stzv4jffe3e.jpg',
+}
+
 export const THEMES = [
   {
     id: 'minimal-3d',
@@ -49,53 +57,36 @@ export const THEMES = [
     previewGradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0c4a6e 100%)',
   },
   {
-    id: 'glacier-ice',
-    name: 'Glacier Aurora',
-    description: 'Северное сияние, кристальные шпили льда и морозный ультрамариновый блеск',
-    accent: '#38bdf8',
-    accentSec: '#0ea5e9',
-    accentIce: '#67e8f9',
-    glow: 'rgba(56, 189, 248, 0.45)',
-    bgTint: 'rgba(14, 165, 233, 0.12)',
-    borderGlow: 'rgba(56, 189, 248, 0.6)',
-    bgImage: glacierBg,
-    isVideo: false,
-    category: 'art',
-    tag: 'Ледяной биом',
-    iconKey: 'Snowflake',
-    previewGradient: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 50%, #67e8f9 100%)',
-  },
-  {
-    id: 'neon-emerald',
-    name: 'Neon Emerald',
-    description: 'Густой хвойный лес тайги, таинственные изумрудные светлячки и неоновый мох',
+    id: 'end-city',
+    name: 'End City',
+    description: 'Город Края среди фиолетовых островов; изображение из галереи Complementary Shaders',
     accent: '#22c55e',
     accentSec: '#10b981',
     accentIce: '#4ade80',
     glow: 'rgba(34, 197, 94, 0.45)',
     bgTint: 'rgba(16, 185, 129, 0.12)',
     borderGlow: 'rgba(34, 197, 94, 0.6)',
-    bgImage: emeraldBg,
+    bgImage: ONLINE_THEME_ART.end,
     isVideo: false,
     category: 'art',
-    tag: 'Изумрудная тайга',
+    tag: 'Край • онлайн',
     iconKey: 'Trees',
     previewGradient: 'linear-gradient(135deg, #22c55e 0%, #10b981 50%, #059669 100%)',
   },
   {
-    id: 'midnight-nebula',
-    name: 'Midnight Nebula',
-    description: 'Космическое измерение Энда, парящие кристаллы аметиста и звездная пыль',
+    id: 'nether-bastion',
+    name: 'Blazing Bastion',
+    description: 'Огненная крепость Незера — интернет-фон с обязательной атрибуцией источника',
     accent: '#a855f7',
     accentSec: '#8b5cf6',
     accentIce: '#c084fc',
     glow: 'rgba(168, 85, 247, 0.45)',
     bgTint: 'rgba(139, 92, 246, 0.12)',
     borderGlow: 'rgba(168, 85, 247, 0.6)',
-    bgImage: nebulaBg,
+    bgImage: ONLINE_THEME_ART.fortress,
     isVideo: false,
     category: 'art',
-    tag: 'Измерение Энд',
+    tag: 'Незер • онлайн',
     iconKey: 'Sparkles',
     previewGradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #ec4899 100%)',
   },
@@ -191,6 +182,36 @@ export const THEMES = [
   },
 ]
 
+export const INTERFACE_THEMES = [
+  { id: 'graphite', name: 'Графит', description: 'Нейтральный тёмный интерфейс' },
+  { id: 'oled', name: 'OLED', description: 'Чистый чёрный, максимум контраста' },
+  { id: 'ash', name: 'Пепельный', description: 'Спокойный серый в стиле Discord' },
+  { id: 'frost', name: 'Светлый', description: 'Чистый светлый интерфейс' },
+]
+
+export function applyInterfaceTheme(id = 'graphite') {
+  const root = document.documentElement
+  root.dataset.interfaceTheme = id
+  const values = id === 'oled'
+    ? { dark: '#000000', glass: 'rgba(0,0,0,.9)', card: 'rgba(7,7,8,.9)', text: '#fff', muted: 'rgba(203,213,225,.64)' }
+    : id === 'ash'
+      ? { dark: '#313338', glass: 'rgba(49,51,56,.97)', card: 'rgba(43,45,49,.98)', text: '#f2f3f5', muted: '#b5bac1' }
+      : id === 'frost'
+      ? { dark: '#eef2f6', glass: 'rgba(255,255,255,.9)', card: 'rgba(255,255,255,.84)', text: '#111827', muted: '#5f6b7a' }
+      : { dark: '#0a0c10', glass: 'rgba(17,20,26,.88)', card: 'rgba(15,18,24,.85)', text: '#fff', muted: 'rgba(148,163,184,.75)' }
+  root.style.setProperty('--bg-dark', values.dark)
+  root.style.setProperty('--bg-glass', values.glass)
+  root.style.setProperty('--bg-glass-card', values.card)
+  root.style.setProperty('--text-main', values.text)
+  root.style.setProperty('--text-muted', values.muted)
+  if (id === 'frost') root.setAttribute('data-theme', 'light')
+  else root.removeAttribute('data-theme')
+  try { localStorage.setItem('vibelauncher_interface_theme', id) } catch (e) {}
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('vibe-interface-theme-changed', { detail: { id } }))
+  }
+}
+
 export function applyTheme(themeId) {
   const theme = THEMES.find((t) => t.id === themeId) || THEMES[0]
   const root = document.documentElement
@@ -240,6 +261,8 @@ export function applyTheme(themeId) {
   try {
     localStorage.setItem('vibelauncher_theme', theme.id)
   } catch (e) {}
+
+  try { applyInterfaceTheme(localStorage.getItem('vibelauncher_interface_theme') || 'graphite') } catch (e) {}
 
   return theme
 }

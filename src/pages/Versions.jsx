@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import styles from './Versions.module.css'
 import { useLanguage } from '../context/LanguageContext'
+import { playUiSound } from '../utils/uiSound'
 
 const TAB_KEYS = [
   { id: 'installed', labelKey: 'versions_tab_installed' },
@@ -53,6 +54,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
   const [loaderVersions, setLoaderVersions] = useState([])
   const [showSnapshots, setShowSnapshots] = useState(false)
   const [limitVanilla, setLimitVanilla] = useState(50)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     loadData(mcVersionForLoader)
@@ -68,10 +70,13 @@ export default function Versions({ onSelectVersion, onNavigate }) {
 
   const loadData = async (targetMcVer = mcVersionForLoader) => {
     setLoading(true)
+    setLoadError('')
     try {
       const localRes = await window.vibe?.getLocalVersions()
       if (localRes?.ok) {
         setLocalVersions(localRes.versions || [])
+      } else if (localRes?.error) {
+        throw new Error(localRes.error)
       }
 
       if (tab === 'installed') {
@@ -79,19 +84,24 @@ export default function Versions({ onSelectVersion, onNavigate }) {
       } else if (tab === 'vanilla') {
         const res = await window.vibe?.getVersionManifest()
         if (res?.ok) setVersions(res.versions || [])
+        else throw new Error(res?.error || 'Каталог версий Minecraft недоступен')
       } else if (tab === 'fabric') {
         setLoaderVersions([])
         const res = await window.vibe?.getFabricVersions(targetMcVer)
         if (res?.ok) setLoaderVersions(res.versions || [])
+        else throw new Error(res?.error || 'Каталог Fabric недоступен')
       } else if (tab === 'forge') {
         setLoaderVersions([])
         const res = await window.vibe?.getForgeVersions(targetMcVer)
         if (res?.ok) setLoaderVersions(res.versions || [])
+        else throw new Error(res?.error || 'Каталог Forge недоступен')
       }
     } catch (e) {
       console.error(e)
+      setLoadError(e?.message || 'Не удалось получить список версий. Проверьте подключение к интернету.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleInstall = async (versionObj, type, loaderVersion) => {
@@ -100,38 +110,52 @@ export default function Versions({ onSelectVersion, onNavigate }) {
     setInstalling(id)
     setProgress({ task: t('loading'), current: 0, total: 1 })
 
-    const settings = (await window.vibe?.storeGet('settings')) || {}
-    const result = await window.vibe?.installVersion({
-      type: type.toLowerCase(),
-      mcVersion: vId || mcVersionForLoader,
-      loaderVersion,
-      gameDir: settings.gameDir,
-    })
+    try {
+      const settings = (await window.vibe?.storeGet('settings')) || {}
+      const result = await window.vibe?.installVersion({
+        type: type.toLowerCase(),
+        mcVersion: vId || mcVersionForLoader,
+        loaderVersion,
+        gameDir: settings.gameDir,
+      })
 
-    if (result?.ok) {
-      await loadData()
-      if (onSelectVersion) {
-        const installedItem = {
-          id: result.versionId || vId,
-          label: result.label || `${type} ${vId}`,
-          type: result.type || type.toLowerCase(),
-          loaderVersion: loaderVersion,
+      if (result?.ok) {
+        playUiSound('success')
+        await loadData()
+        if (onSelectVersion) {
+          const installedItem = {
+            id: result.versionId || vId,
+            label: result.label || `${type} ${vId}`,
+            type: result.type || type.toLowerCase(),
+            loaderVersion: loaderVersion,
+          }
+          await window.vibe?.storeSet('lastVersion', installedItem)
+          onSelectVersion(installedItem)
         }
-        await window.vibe?.storeSet('lastVersion', installedItem)
-        onSelectVersion(installedItem)
+      } else {
+        playUiSound('error')
+        alert(result?.error || 'Ошибка при установке версии')
       }
-    } else {
-      alert(result?.error || 'Ошибка при установке версии')
+    } catch (error) {
+      playUiSound('error')
+      alert(error?.message || 'Не удалось установить версию. Проверьте подключение к интернету и повторите попытку.')
+    } finally {
+      setInstalling(null)
+      setProgress(null)
     }
-
-    setInstalling(null)
-    setProgress(null)
   }
 
   const handleDelete = async (versionId) => {
     if (window.confirm(t('versions_confirm_delete', { version: versionId }))) {
-      await window.vibe?.deleteVersion(versionId)
-      await loadData()
+      try {
+        const result = await window.vibe?.deleteVersion(versionId)
+        if (!result?.ok) throw new Error(result?.error || 'Не удалось удалить версию')
+        playUiSound('success')
+        await loadData()
+      } catch (error) {
+        playUiSound('error')
+        alert(error?.message || 'Не удалось удалить версию')
+      }
     }
   }
 
@@ -298,7 +322,16 @@ export default function Versions({ onSelectVersion, onNavigate }) {
 
         {/* Version list */}
         <div className={styles.list}>
-          {loading ? (
+          {loadError ? (
+            <div className={styles.emptyState}>
+              <RefreshCw size={30} className={styles.emptyIcon} />
+              <p>Не удалось загрузить версии</p>
+              <span>{loadError}</span>
+              <button type="button" className={styles.openFolderBtn} onClick={() => loadData()}>
+                <RefreshCw size={13} /> Повторить
+              </button>
+            </div>
+          ) : loading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}

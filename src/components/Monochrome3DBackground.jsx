@@ -10,8 +10,17 @@ export default function Monochrome3DBackground({
   paused = false,
   colorMode = 'monochrome', // 'monochrome' | 'cyber' | 'gold' | 'emerald' | 'hyperspace' | 'crystals' | 'ender'
   sceneType = 'minimal-void',
+  externalCanvasRef,
 }) {
   const canvasRef = useRef(null)
+
+  useEffect(() => {
+    if (!externalCanvasRef) return undefined
+    externalCanvasRef.current = canvasRef.current
+    return () => {
+      if (externalCanvasRef.current === canvasRef.current) externalCanvasRef.current = null
+    }
+  }, [externalCanvasRef])
 
   useEffect(() => {
     const canvas = canvasRef.current

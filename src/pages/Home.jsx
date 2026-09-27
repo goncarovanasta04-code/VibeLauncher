@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import MiniSkin3D from '../components/MiniSkin3D'
 import LaunchErrorModal from '../components/LaunchErrorModal'
+import LiquidGlassShader from '../components/LiquidGlassShader'
 import { useLanguage } from '../context/LanguageContext'
 import packageInfo from '../../package.json'
 import styles from './Home.module.css'
@@ -31,9 +32,6 @@ import styles from './Home.module.css'
 function isVersionInstalled(v, locals) {
   if (!v || !locals || locals.length === 0) return false
   if (v.isLocal) return true
-
-  // Direct match by ID
-  if (locals.some((l) => l.id === v.id)) return true
 
   // Fabric check
   if (v.type === 'fabric') {
@@ -47,7 +45,7 @@ function isVersionInstalled(v, locals) {
 
   // Vanilla check
   if (v.type === 'vanilla') {
-    return locals.some((l) => l.id === v.id || (l.type === 'vanilla' && l.id === v.id))
+    return locals.some((l) => l.id === v.id && (!l.type || l.type === 'vanilla'))
   }
 
   // Forge / NeoForge / OptiFine check
@@ -55,7 +53,7 @@ function isVersionInstalled(v, locals) {
     return locals.some((l) => l.type === 'forge' && (l.baseVersion === v.id || l.id.includes(v.id)))
   }
 
-  return false
+  return locals.some((l) => l.id === v.id && (!v.type || !l.type || l.type === v.type))
 }
 
 export default function Home({
@@ -70,6 +68,9 @@ export default function Home({
   onLoginRequest,
   onGameRunningChange,
   cardRef,
+  liquidSourceCanvasRef,
+  liquidLensEnabled = false,
+  liquidLensFps = 30,
 }) {
   const { t } = useLanguage()
   const [localVersions, setLocalVersions] = useState([])
@@ -106,6 +107,7 @@ export default function Home({
   const dropdownRef = useRef(null)
   const profileMenuRef = useRef(null)
   const maxSeenProgress = useRef(0)
+  const mouseFrameRef = useRef(0)
 
   const isInstalled = useMemo(() => {
     return isVersionInstalled(selected, localVersions)
@@ -146,10 +148,17 @@ export default function Home({
             phaseText = t('home_phase_components', { pct: rawPct })
           }
         } else if (evt.type === 'progress' && evt.data) {
-          const { task, total, type } = evt.data
-          const rawPct = total > 0 ? Math.min(100, Math.round((task / total) * 100)) : 0
+          const { task, total, type, percent } = evt.data
+          const rawPct = Number.isFinite(percent)
+            ? Math.min(100, Math.round(percent))
+            : total > 0
+            ? Math.min(100, Math.round((task / total) * 100))
+            : 0
 
-          if (type === 'natives' || type === 'classes' || type === 'download' || type === 'libraries') {
+          if (type === 'java') {
+            phaseCalculated = 5 + Math.round((rawPct / 100) * 12)
+            phaseText = typeof task === 'string' ? task : `Загрузка Java: ${rawPct}%`
+          } else if (type === 'natives' || type === 'classes' || type === 'download' || type === 'libraries') {
             phaseCalculated = 25 + Math.round((rawPct / 100) * 40)
             phaseText = total > 0 ? t('home_phase_libraries_count', { task, total }) : t('home_phase_libraries_prep')
           } else if (type === 'assets') {
@@ -301,7 +310,11 @@ export default function Home({
         if (selected?.id === v.id) {
           const fallback = presetVersions[0] || { id: '1.20.1', label: 'Fabric 1.20.1', type: 'fabric' }
           setSelected(fallback)
+          setSelectedVersion?.(fallback)
           window.vibe?.storeSet('lastVersion', fallback)
+          try {
+            localStorage.setItem('vibelauncher_last_version', JSON.stringify(fallback))
+          } catch (e) {}
         }
         setStatus(isPack ? 'Сборка успешно удалена' : 'Версия удалена')
         setTimeout(() => setStatus(''), 3000)
@@ -426,6 +439,9 @@ export default function Home({
   const handleLogout = async () => {
     setProfile(null)
     await window.vibe?.storeDelete('profile')
+    try {
+      localStorage.removeItem('vibelauncher_profile')
+    } catch (e) {}
     setShowProfileDropdown(false)
   }
 
@@ -484,23 +500,48 @@ export default function Home({
   const versionDisplayLabel = selected?.label || selected?.id || 'Fabric 1.16.5'
 
   const handleMouseMove = (e) => {
+    // The standard blur mode needs no per-pixel work. In the beta lens mode,
+    // batch pointer updates to a frame so clicks stay responsive on weak GPUs.
+    if (!liquidLensEnabled) return
     const card = e.currentTarget
     if (!card) return
-    const rect = card.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    card.style.setProperty('--mouse-x', `${x}px`)
-    card.style.setProperty('--mouse-y', `${y}px`)
+    const clientX = e.clientX
+    const clientY = e.clientY
+    if (mouseFrameRef.current) cancelAnimationFrame(mouseFrameRef.current)
+    mouseFrameRef.current = requestAnimationFrame(() => {
+      const rect = card.getBoundingClientRect()
+      card.style.setProperty('--mouse-x', `${clientX - rect.left}px`)
+      card.style.setProperty('--mouse-y', `${clientY - rect.top}px`)
+      mouseFrameRef.current = 0
+    })
   }
+
+  useEffect(() => () => {
+    if (mouseFrameRef.current) cancelAnimationFrame(mouseFrameRef.current)
+  }, [])
 
   return (
     <div className={styles.page}>
       {/* Center Interactive Liquid Glass Card */}
       <div
         ref={cardRef}
-        className={styles.centerCard}
+        className={`${styles.centerCard} ${liquidLensEnabled ? styles.refractiveCard : ''}`}
         onMouseMove={handleMouseMove}
       >
+        <LiquidGlassShader
+          cardRef={cardRef}
+          sourceCanvasRef={liquidSourceCanvasRef}
+          disabled={!liquidLensEnabled}
+          maxFps={liquidLensFps}
+        />
+        <div className={styles.cardIntro}>
+          <div className={styles.readyState}>
+            <span className={styles.readyDot} />
+            <span>VibeLauncher</span>
+          </div>
+          <span className={styles.cardVersion}>v{packageInfo.version}</span>
+        </div>
+
         {/* Row 1: Profile Selector [ 👤 ZIKYT (Лицензия) ⌵ ] */}
         <div className={styles.fieldWrap} ref={profileMenuRef}>
           {profile ? (
@@ -1048,6 +1089,13 @@ export default function Home({
         {/* Thin Divider Line */}
         <div className={styles.cardDivider} />
 
+        {!launching && status && (
+          <div className={styles.statusToast} role="status" aria-live="polite">
+            <span className={styles.statusToastDot} />
+            <span>{status}</span>
+          </div>
+        )}
+
         {/* Row 4: Big Button «Запустить» / «Установить» with Humanized Compact Progress */}
         <div className={styles.launchArea}>
           {launching && (
@@ -1267,4 +1315,3 @@ export default function Home({
     </div>
   )
 }
-

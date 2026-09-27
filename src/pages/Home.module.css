@@ -64,6 +64,25 @@
   z-index: 2;
 }
 
+.centerCard :global(.liquid-lens) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 1;
+}
+
+/* Backdrop-filter samples the already-composited foreground in Chromium on
+   some GPUs, which creates a duplicate "reflection" of the launcher UI.
+   The WebGL lens is the backdrop for 3D scenes, so prevent that feedback loop. */
+.refractiveCard {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .fieldWrap {
   position: relative;
   width: 100%;
@@ -840,7 +859,11 @@
 }
 
 .checkboxInput {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .checkboxCustom {
@@ -1461,4 +1484,266 @@
 .toolBtnHighlight:hover {
   background: rgba(255, 255, 255, 0.15) !important;
   box-shadow: none !important;
+}
+
+/* Liquid glass visual system */
+.page {
+  padding: 58px 20px 64px;
+}
+
+.centerCard {
+  width: 378px;
+  max-width: min(92vw, 378px);
+  padding: 18px;
+  gap: 10px;
+  border-radius: 26px;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(220, 240, 255, 0.34) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(6, 14, 28, 0.62),
+    0 24px 58px rgba(0, 0, 0, 0.42),
+    0 0 34px rgba(232, 239, 245, 0.08) !important;
+}
+
+.centerCard::before {
+  border-radius: inherit;
+  background:
+    radial-gradient(circle 118px at var(--mouse-x, 50%) var(--mouse-y, 32%), rgba(245, 248, 250, 0.065), rgba(190, 204, 215, 0.018) 46%, transparent 72%),
+    radial-gradient(ellipse 64% 20% at 18% -3%, rgba(255,255,255,.095), transparent 68%),
+    linear-gradient(115deg, rgba(255,255,255,.025), transparent 38%);
+}
+
+.centerCard::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 25px;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: inset 0 0 24px rgba(225, 235, 242, 0.025), inset 0 12px 22px rgba(255,255,255,.014);
+}
+
+.cardIntro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1px 3px 4px;
+}
+
+.readyState {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.readyDot,
+.statusToastDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #68e6a7;
+  box-shadow: 0 0 0 3px rgba(104, 230, 167, 0.11), 0 0 12px rgba(104, 230, 167, 0.65);
+}
+
+.cardVersion {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.avatarMainBtn,
+.profileNickBtn,
+.selectBtn,
+.refreshVersionsBtn,
+.toolBtn {
+  background: linear-gradient(135deg, rgba(235, 239, 242, 0.11), rgba(24,29,35,.13) 58%, rgba(188,198,208,.065)) !important;
+  border: 1px solid rgba(236, 240, 244, 0.22) !important;
+  border-top-color: rgba(255, 255, 255, 0.36) !important;
+  border-bottom-color: rgba(169, 181, 192, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0,0,0,.2), 0 7px 18px rgba(0, 0, 0, 0.15) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.avatarMainBtn,
+.profileNickBtn,
+.selectBtn,
+.refreshVersionsBtn {
+  height: 44px;
+  border-radius: 14px;
+}
+
+.avatarMainBtn {
+  width: 44px;
+}
+
+.avatarMainBtn:hover,
+.profileNickBtn:hover,
+.selectBtn:hover,
+.refreshVersionsBtn:hover:not(:disabled),
+.toolBtn:hover {
+  background: linear-gradient(145deg, rgba(244, 247, 250, 0.15), rgba(60, 70, 82, 0.12)) !important;
+  border-color: rgba(231, 246, 255, 0.42) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 10px 24px rgba(0, 0, 0, 0.22), 0 0 16px rgba(235,242,248,.055) !important;
+}
+
+.dropdownMenu,
+.versionDropdown {
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(25, 35, 52, 0.94), rgba(7, 12, 21, 0.93)) !important;
+  backdrop-filter: blur(32px) saturate(170%);
+  -webkit-backdrop-filter: blur(32px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 28px 60px rgba(0, 0, 0, 0.62);
+  overflow: hidden;
+}
+
+.checkboxContainer {
+  flex-direction: row;
+  gap: 7px;
+  padding: 0;
+}
+
+.checkboxLabel {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 7px;
+  gap: 6px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.checkboxLabel:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.checkboxLabel:focus-within {
+  outline: 2px solid rgba(112, 204, 255, 0.95);
+  outline-offset: 2px;
+}
+
+.checkboxText {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.2px;
+  letter-spacing: -0.01em;
+}
+
+.checkboxCustom {
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+}
+
+.checkboxInput:checked + .checkboxCustom {
+  background: linear-gradient(135deg, #65c8ff, #4b7cff);
+  border-color: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 3px 10px rgba(70, 142, 255, 0.45), inset 0 1px 0 rgba(255,255,255,.45);
+}
+
+.cardDivider {
+  opacity: .65;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent);
+}
+
+.statusToast {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 11px;
+  background: rgba(104, 230, 167, 0.09);
+  border: 1px solid rgba(104, 230, 167, 0.2);
+  color: rgba(234, 255, 245, 0.92);
+  font-size: 11px;
+  font-weight: 600;
+  animation: statusIn .24s cubic-bezier(.16, 1, .3, 1);
+}
+
+.statusToastDot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+}
+
+@keyframes statusIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.launchBtn,
+.launchBtnInstall {
+  height: 46px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(80, 178, 255, 0.96), rgba(55, 103, 255, 0.9)) !important;
+  border: 1px solid rgba(190, 229, 255, 0.56) !important;
+  border-top-color: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -8px 18px rgba(20,52,160,.18), 0 12px 26px rgba(32, 111, 255, 0.34) !important;
+}
+
+.launchBtn::before {
+  content: '';
+  position: absolute;
+  inset: 1px 1px auto;
+  height: 48%;
+  border-radius: 14px 14px 50% 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,.24), transparent);
+  pointer-events: none;
+}
+
+.launchBtn:hover:not(:disabled),
+.launchBtnInstall:hover:not(:disabled) {
+  background: linear-gradient(135deg, #6dccff, #4e78ff) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 16px 34px rgba(49, 128, 255, 0.48) !important;
+  transform: translateY(-1px) scale(1.01);
+}
+
+.toolBar {
+  gap: 7px;
+}
+
+.toolBtn {
+  height: 39px;
+  border-radius: 13px;
+}
+
+.bottomBanner {
+  bottom: 20px;
+  border-radius: 999px;
+  padding: 8px 24px;
+  background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04));
+  border-color: rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 12px 32px rgba(0,0,0,.25);
+}
+
+.infoModal {
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(27, 38, 56, 0.94), rgba(8, 13, 23, 0.91));
+  backdrop-filter: blur(32px) saturate(170%);
+  -webkit-backdrop-filter: blur(32px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 28px 70px rgba(0,0,0,.65);
+}
+
+@media (max-height: 560px) {
+  .page { padding-top: 48px; padding-bottom: 42px; }
+  .centerCard { padding: 14px; gap: 7px; }
+  .bottomBanner { bottom: 8px; padding-block: 5px; }
+  .cardIntro { display: none; }
 }

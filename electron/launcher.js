@@ -5,7 +5,7 @@ const os = require('os')
 const axios = require('axios')
 const { app } = require('electron')
 const { generateOfflineUUID } = require('./auth/elyby')
-const { resolveJavaRuntime, getRequiredJavaVersion, autoDownloadJava, probeJavaInfo } = require('./java')
+const { resolveJavaRuntime, getRequiredJavaVersion, autoDownloadJava, probeJavaInfo, isCompatibleJava } = require('./java')
 const { applyPotatoMinecraftOptions } = require('./potato')
 const child_process = require('child_process')
 const { spawnSync } = child_process
@@ -645,6 +645,9 @@ async function launchMinecraft(opts, onLog, onProgress) {
         type === 'fabric' ||
         type === 'forge' ||
         type === 'quilt' ||
+        type === 'neoforge' ||
+        type === 'optifine' ||
+        type === 'modpack' ||
         mcVersion.startsWith('fabric-') ||
         mcVersion.startsWith('forge-') ||
         Boolean(localData.inheritsFrom)
@@ -912,25 +915,15 @@ async function launchMinecraft(opts, onLog, onProgress) {
   }
 
   // Resolve accurate, version-compatible Java runtime (Java 8, 17, or 21)
-  let resolvedJava = 'java'
-  try {
-    const customOverride = (javaMode === 'manual' && javaPath && javaPath.trim()) ? javaPath.trim() : null
-    resolvedJava = await resolveJavaRuntime(baseMcVersion, customOverride, rootDir, onProgress, localData)
-  } catch (jErr) {
-    console.warn('[Launcher] Error resolving Java runtime:', jErr.message)
-    resolvedJava = findJavaExecutable(javaPath)
-  }
+  const requiredJava = getRequiredJavaVersion(baseMcVersion, localData)
+  const customOverride = (javaMode === 'manual' && javaPath && javaPath.trim()) ? javaPath.trim() : null
+  let resolvedJava = await resolveJavaRuntime(baseMcVersion, customOverride, rootDir, onProgress, localData)
 
   // Safety check for 32-bit Java
-  try {
-    const jInfo = probeJavaInfo(resolvedJava)
-    if (jInfo && jInfo.is64Bit === false && numRamMax > 1.5) {
-      console.warn('[Launcher] 32-bit Java runtime detected, capping RAM to 1024M to avoid crash')
-      numRamMax = 1
-      maxMemory = '1024M'
-      minMemory = '512M'
-    }
-  } catch (e) {}
+  const jInfo = probeJavaInfo(resolvedJava)
+  if (!isCompatibleJava(jInfo, requiredJava)) {
+    throw new Error(`Подобранная Java несовместима с Minecraft ${baseMcVersion}. Требуется 64-битная Java ${requiredJava}.`)
+  }
 
   // Fast pre-flight dry run with spawnSync to ensure the selected Java executable can actually allocate heap
   try {
@@ -940,13 +933,13 @@ async function launchMinecraft(opts, onLog, onProgress) {
     }
   } catch (dryErr) {
     console.warn(`[Launcher] Java dry-run failed with ${resolvedJava}:`, dryErr.message)
-    try {
-      const reqMajor = getRequiredJavaVersion(baseMcVersion, localData)
-      console.log(`[Launcher] Automatically downloading clean portable Java ${reqMajor}...`)
-      resolvedJava = await autoDownloadJava(reqMajor, rootDir, onProgress)
-    } catch (e) {
-      console.warn('[Launcher] Auto-download fallback failed:', e.message)
+    console.log(`[Launcher] Automatically downloading clean portable Java ${requiredJava}...`)
+    const downloadedJava = await autoDownloadJava(requiredJava, rootDir, onProgress)
+    const downloadedInfo = probeJavaInfo(downloadedJava)
+    if (!isCompatibleJava(downloadedInfo, requiredJava)) {
+      throw new Error(`Автозагруженная Java не прошла проверку совместимости для Minecraft ${baseMcVersion}.`)
     }
+    resolvedJava = downloadedJava
   }
 
   // Test full JVM memory allocation & arguments before Minecraft launches
@@ -1279,5 +1272,3 @@ function analyzeCrashLogs(logs, exitCode) {
 }
 
 module.exports = { launchMinecraft, getDefaultGameDir }
-
-

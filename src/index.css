@@ -1,12 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-  /* Clean Anti-AI Slop Neutral Dark Palette */
-  --bg-dark: #0b0c0e;
-  --bg-glass: rgba(18, 20, 25, 0.85);
-  --bg-glass-hover: rgba(26, 29, 36, 0.9);
-  --bg-glass-subtle: rgba(255, 255, 255, 0.05);
-  --bg-glass-card: rgba(20, 22, 28, 0.8);
+  --bg-dark: #070b12;
+  --bg-glass: rgba(13, 20, 31, 0.56);
+  --bg-glass-hover: rgba(255, 255, 255, 0.13);
+  --bg-glass-subtle: rgba(255, 255, 255, 0.075);
+  --bg-glass-card: rgba(12, 19, 30, 0.58);
   
   --accent-cyan: #ffffff;
   --accent-ice: #f1f5f9;
@@ -29,10 +28,10 @@
   --success: #10b981;
   --warning: #f59e0b;
   
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
   
   /* Smooth Physics Transitions */
@@ -62,15 +61,19 @@ html, body, #root {
 
 /* Master Neutral Dark Surface Classes */
 .glass {
-  background: #0f1115;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(145deg, rgba(24, 34, 50, 0.76), rgba(8, 13, 22, 0.62));
+  backdrop-filter: blur(30px) saturate(165%);
+  -webkit-backdrop-filter: blur(30px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 24px 64px rgba(0, 0, 0, 0.58);
 }
 
 .glass-subtle {
-  background: #14161c;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045));
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 12px 30px rgba(0, 0, 0, 0.28);
 }
 
 /* Universal Button Tactile Touch Response */
@@ -80,6 +83,20 @@ button {
 
 button:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid rgba(112, 204, 255, 0.95);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Common Inputs with Smooth Inset Depth */
@@ -197,6 +214,28 @@ input::placeholder {
   }
 }
 
+/* A consistent, calm motion language for every glass layer. */
+@media (prefers-reduced-motion: no-preference) {
+  :where([class*="_overlay_"], [class*="_modalOverlay_"], [class*="_infoOverlay_"]) {
+    animation: fadeIn 180ms ease-out both;
+  }
+
+  :where([class*="_modal_"], [class*="_versionsModal_"], [class*="_infoModal_"], [class*="_panel_"]) {
+    animation: springModalIn 360ms cubic-bezier(.16, 1, .3, 1) both;
+    transform-origin: 50% 45%;
+  }
+
+  :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+    animation: dropdownUnfold 220ms cubic-bezier(.16, 1, .3, 1) both;
+    transform-origin: top center;
+  }
+
+  :where([class*="_card_"], [class*="_modCard_"], [class*="_versionItem_"]) {
+    transition: transform 180ms cubic-bezier(.16, 1, .3, 1),
+      background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+}
+
 .spin {
   animation: spin 0.8s linear infinite;
 }
@@ -204,4 +243,116 @@ input::placeholder {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/*
+ * Liquid material: one composited layer per surface instead of a permanent
+ * WebGL pass. It refracts the real active theme behind the UI, stays sharp on
+ * text, and costs far less than redrawing a full-window shader every frame.
+ */
+:root {
+  --liquid-fill: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.075) 30%,
+    rgba(171, 205, 255, 0.10) 66%,
+    rgba(255, 255, 255, 0.14) 100%);
+  --liquid-control: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.17),
+    rgba(255, 255, 255, 0.055) 55%,
+    rgba(190, 215, 255, 0.11));
+  --liquid-rim: rgba(255, 255, 255, 0.34);
+  --liquid-shadow: 0 22px 54px rgba(0, 0, 0, 0.34);
+}
+
+/* Dialogs and manager windows share the same optical shell. */
+html.liquid-glass-enabled :where([class*="_overlay_"], [class*="_modalOverlay_"], [class*="_infoOverlay_"]) {
+  background: rgba(2, 8, 17, 0.48) !important;
+  backdrop-filter: blur(18px) saturate(112%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(112%) !important;
+}
+
+html.liquid-glass-enabled :where([class*="_modal_"], [class*="_versionsModal_"], [class*="_infoModal_"], [class*="_panel_"]) {
+  background: var(--liquid-fill) !important;
+  backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
+  border: 1px solid var(--liquid-rim) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    inset 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(5, 11, 21, 0.26),
+    var(--liquid-shadow) !important;
+}
+
+html.liquid-glass-enabled :where([class*="_modal_"])::before,
+html.liquid-glass-enabled :where([class*="_versionsModal_"])::before,
+html.liquid-glass-enabled :where([class*="_infoModal_"])::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(ellipse 75% 38% at 18% -6%, rgba(255,255,255,.34), transparent 62%);
+  opacity: .72;
+}
+
+html.liquid-glass-enabled :where([class*="_modal_"]) > *,
+html.liquid-glass-enabled :where([class*="_versionsModal_"]) > *,
+html.liquid-glass-enabled :where([class*="_infoModal_"]) > * {
+  position: relative;
+  z-index: 1;
+}
+
+html.liquid-glass-enabled :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+  background: var(--liquid-fill) !important;
+  backdrop-filter: blur(26px) saturate(150%) contrast(108%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(150%) contrast(108%) !important;
+  border-color: rgba(255,255,255,.32) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 20px 46px rgba(0,0,0,.34) !important;
+}
+
+html.liquid-glass-enabled :where([class*="_closeBtn_"], [class*="_modalCloseBtn_"], [class*="_infoClose_"]) {
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.12) !important;
+  border: 1px solid rgba(255,255,255,.23) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3) !important;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.liquid-glass-enabled :where([class*="_modal_"], [class*="_versionsModal_"], [class*="_infoModal_"], [class*="_panel_"]) {
+    background: rgba(18, 28, 43, .96) !important;
+  }
+}
+
+/* The beta lens is an opt-in material that is applied consistently to every
+   launcher surface — cards, controls, dropdowns and dialogs. */
+html.liquid-glass-enabled :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+  background: var(--liquid-fill) !important;
+  backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
+  border-color: rgba(255,255,255,.26) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.42), inset 0 -1px 0 rgba(5,11,21,.2), 0 16px 40px rgba(0,0,0,.26) !important;
+}
+html.liquid-glass-enabled :where(button, input, select) {
+  transition-duration: 150ms;
+}
+
+/* Opaque interface presets deliberately supersede the glass material. */
+html[data-interface-theme="oled"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
+  background: #060607 !important;
+  border-color: rgba(255,255,255,.1) !important;
+}
+
+html[data-interface-theme="ash"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
+  background: #313338 !important;
+  border-color: rgba(255,255,255,.1) !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
+  background: rgba(255,255,255,.96) !important;
+  color: #111827 !important;
+  border-color: rgba(15,23,42,.13) !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"]) :where(h1,h2,h3,strong,p,span,label) {
+  color: inherit;
 }

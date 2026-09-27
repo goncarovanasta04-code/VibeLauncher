@@ -134,6 +134,14 @@ function probeJavaVersion(javaExePath) {
   return info ? info.major : null
 }
 
+function isCompatibleJava(info, requiredMajor) {
+  if (!info || !info.valid || !info.is64Bit) return false
+  if (requiredMajor === 8) return info.major === 8
+  if (requiredMajor === 17) return info.major >= 17 && info.major <= 20
+  if (requiredMajor === 21) return info.major >= 21 && info.major <= 24
+  return info.major === requiredMajor
+}
+
 /**
  * Discovers all valid 64-bit Java installations on the machine.
  */
@@ -410,6 +418,7 @@ async function autoDownloadJava(majorVersion, rootDir, onProgress) {
           onProgress({
             type: 'progress',
             data: {
+              type: 'java',
               task: `Java ${majorVersion} (${info.current} МБ / ${info.total} МБ)`,
               percent: info.percent,
             },
@@ -499,19 +508,14 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
     const cp = customPath.trim()
     if (fs.existsSync(cp)) {
       const customMajor = probeJavaVersion(cp)
-      const isCompatible =
-        customMajor === reqMajor ||
-        (reqMajor === 17 && customMajor >= 17 && customMajor <= 20) ||
-        (reqMajor === 21 && customMajor >= 21 && customMajor <= 24)
-
-      if (isCompatible || !customMajor) {
+      const customInfo = probeJavaInfo(cp)
+      if (isCompatibleJava(customInfo, reqMajor)) {
         console.log(`[Java] Using user-specified Java: ${cp} (major: ${customMajor})`)
         return cp
-      } else {
-        console.warn(
-          `[Java] User manual Java (${cp}, Java ${customMajor}) is incompatible with Minecraft ${mcVersion} (requires Java ${reqMajor}). Automatically selecting compatible runtime...`
-        )
       }
+      console.warn(
+        `[Java] User manual Java (${cp}, Java ${customMajor || 'unknown'}) is incompatible or unavailable for Minecraft ${mcVersion} (requires 64-bit Java ${reqMajor}). Automatically selecting compatible runtime...`
+      )
     }
   }
 
@@ -519,8 +523,8 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
   const localPortableDir = path.join(rootDir, 'runtimes', `java-${reqMajor}`)
   const localJava = findJavaInDirectory(localPortableDir)
   if (localJava && fs.existsSync(localJava)) {
-    const v = probeJavaVersion(localJava)
-    if (v === reqMajor || v === null) {
+    const info = probeJavaInfo(localJava)
+    if (isCompatibleJava(info, reqMajor)) {
       console.log(`[Java] Found cached portable Java ${reqMajor}: ${localJava}`)
       return localJava
     }
@@ -531,7 +535,7 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
   console.log('[Java] Discovered local Java runtimes:', localList)
 
   // Find exact match
-  const exactMatch = localList.find((item) => item.major === reqMajor)
+  const exactMatch = localList.find((item) => isCompatibleJava(item, reqMajor))
   if (exactMatch) {
     console.log(`[Java] Found matching system Java ${reqMajor}: ${exactMatch.path}`)
     return exactMatch.path
@@ -552,20 +556,20 @@ async function resolveJavaRuntime(mcVersion, customPath, rootDir, onProgress, ve
   // NEVER use Java 17 for Java 21 (1.20.5+ strictly fails)
   // NEVER use Java 17+ for Java 8 (<= 1.16.5 strictly fails)
   if (reqMajor === 21) {
-    const java21Plus = localList.find((item) => item.major >= 21 && item.major <= 24)
+    const java21Plus = localList.find((item) => isCompatibleJava(item, reqMajor))
     if (java21Plus) return java21Plus.path
   } else if (reqMajor === 8) {
-    const java8 = localList.find((item) => item.major === 8)
+    const java8 = localList.find((item) => isCompatibleJava(item, reqMajor))
     if (java8) return java8.path
   } else {
-    const safeFallback = localList.find((item) => item.major <= 21 && item.major >= 17)
+    const safeFallback = localList.find((item) => isCompatibleJava(item, reqMajor))
     if (safeFallback) return safeFallback.path
   }
 
   // If no compatible Java could be found or downloaded, throw an informative error
   // instead of blindly running 'java' which might be the wrong version and crash.
   const sysJava = probeJavaInfo('java')
-  if (sysJava && sysJava.major === reqMajor) {
+  if (isCompatibleJava(sysJava, reqMajor)) {
     return 'java'
   }
 
@@ -578,6 +582,7 @@ module.exports = {
   getRequiredJavaVersion,
   probeJavaVersion,
   probeJavaInfo,
+  isCompatibleJava,
   discoverLocalJavaInstallations,
   resolveJavaRuntime,
   autoDownloadJava,

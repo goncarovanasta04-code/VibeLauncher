@@ -16,15 +16,31 @@ import {
   Cpu,
   Coffee,
   HardDrive,
+  FlaskConical,
 } from 'lucide-react'
 import styles from './WelcomeModal.module.css'
 import { useLanguage } from '../context/LanguageContext'
 
 import FlagIcon from './FlagIcon'
 
-export default function WelcomeModal({ onClose, onOpenLogin }) {
+export default function WelcomeModal({ onClose, onOpenLogin, onLiquidGlassChange }) {
   const { language, setLanguage, t, languages } = useLanguage()
   const [step, setStep] = useState(0)
+
+  const liquidCopy = {
+    ru: { badge: 'Новая функция', title: 'Жидкое стекло', desc: 'Оптическая линза для интерфейса вместо обычного размытия.', warning: 'BETA: может снизить производительность или работать нестабильно на некоторых ПК.', enable: 'Включить жидкое стекло', enabled: 'Жидкое стекло включено' },
+    en: { badge: 'New feature', title: 'Liquid glass', desc: 'An optical interface lens instead of ordinary blur.', warning: 'BETA: it may reduce performance or be unstable on some PCs.', enable: 'Enable liquid glass', enabled: 'Liquid glass enabled' },
+    uk: { badge: 'Нова функція', title: 'Рідке скло', desc: 'Оптична лінза для інтерфейсу замість звичайного розмиття.', warning: 'BETA: може знизити продуктивність або працювати нестабільно на деяких ПК.', enable: 'Увімкнути рідке скло', enabled: 'Рідке скло увімкнено' },
+    de: { badge: 'Neue Funktion', title: 'Flüssigglas', desc: 'Eine optische Oberfläche statt gewöhnlicher Unschärfe.', warning: 'BETA: Kann die Leistung mindern oder auf einigen PCs instabil sein.', enable: 'Flüssigglas aktivieren', enabled: 'Flüssigglas aktiviert' },
+  }[language] || null
+  const [liquidGlass, setLiquidGlass] = useState(false)
+
+  const enableLiquidGlass = async () => {
+    setLiquidGlass(true)
+    const settings = (await window.vibe?.storeGet?.('settings')) || {}
+    await window.vibe?.storeSet?.('settings', { ...settings, liquidGlass: true, potatoMode: false })
+    onLiquidGlassChange?.(true)
+  }
 
   const handleFinish = () => {
     try {
@@ -78,6 +94,28 @@ export default function WelcomeModal({ onClose, onOpenLogin }) {
 
     // Step 1: Versions & Modrinth
     {
+      badge: liquidCopy.badge,
+      icon: FlaskConical,
+      title: liquidCopy.title,
+      desc: liquidCopy.desc,
+      content: (
+        <div className={styles.featureGrid}>
+          <div className={styles.featureCard}>
+            <div className={styles.featureIconWrap}><FlaskConical size={18} /></div>
+            <div className={styles.featureText}>
+              <h4><span className={styles.betaPill}>BETA</span> {liquidCopy.title}</h4>
+              <p>{liquidCopy.warning}</p>
+            </div>
+          </div>
+          <button type="button" className={styles.liquidToggle} onClick={enableLiquidGlass} disabled={liquidGlass}>
+            <FlaskConical size={15} /> <span>{liquidGlass ? liquidCopy.enabled : liquidCopy.enable}</span>
+          </button>
+        </div>
+      ),
+    },
+
+    // Step 2: Versions & Modrinth
+    {
       badge: t('step2_badge'),
       icon: Layers,
       title: t('step2_title'),
@@ -120,7 +158,7 @@ export default function WelcomeModal({ onClose, onOpenLogin }) {
       ),
     },
 
-    // Step 2: Accounts & Skins
+    // Step 3: Accounts & Skins
     {
       badge: t('step3_badge'),
       icon: ShieldCheck,
@@ -170,7 +208,7 @@ export default function WelcomeModal({ onClose, onOpenLogin }) {
       ),
     },
 
-    // Step 3: Optimization & Potato Mode
+    // Step 4: Optimization & Potato Mode
     {
       badge: t('step4_badge'),
       icon: Zap,
@@ -221,7 +259,7 @@ export default function WelcomeModal({ onClose, onOpenLogin }) {
       <div className={styles.modal}>
         {/* Top bar with step badge and close */}
         <div className={styles.topRow}>
-          <div className={styles.stepBadge}>{currentStep.badge}</div>
+          <div className={styles.stepBadge}>{currentStep.badge.replace('4', '5')}</div>
           <button className={styles.skipBtn} onClick={handleSkip} title={t('skip')}>
             <span>{t('skip')}</span>
             <X size={14} />

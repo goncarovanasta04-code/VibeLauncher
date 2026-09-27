@@ -34,6 +34,13 @@
   flex-direction: column;
 }
 
+/* iOS-inspired liquid glass shell */
+.betaPill { display: inline-block; margin-right: 4px; padding: 2px 5px; border: 1px solid rgba(245,190,80,.46); border-radius: 99px; color: #f3c56c; font-size: 9px; letter-spacing: .08em; vertical-align: 1px; }
+.liquidToggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 38px; padding: 9px 12px; border: 1px solid rgba(235,241,246,.34); border-radius: 12px; background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.055)); box-shadow: inset 0 1px 0 rgba(255,255,255,.35); color: #fff; font-weight: 700; cursor: pointer; }
+.liquidToggle:disabled { cursor: default; opacity: .68; }
+.overlay { background: rgba(2, 6, 14, .5); backdrop-filter: blur(18px) saturate(130%); -webkit-backdrop-filter: blur(18px) saturate(130%); }
+.modal { border-radius: 25px; background: linear-gradient(145deg, rgba(30, 42, 60, .9), rgba(7, 13, 24, .82)); backdrop-filter: blur(36px) saturate(175%); -webkit-backdrop-filter: blur(36px) saturate(175%); border-color: rgba(255,255,255,.2); box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 32px 84px rgba(0,0,0,.6); }
+
 @keyframes modalIn {
   from {
     opacity: 0;

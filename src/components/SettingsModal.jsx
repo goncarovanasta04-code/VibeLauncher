@@ -29,11 +29,14 @@ import {
   Layers,
   Radio,
   ExternalLink,
+  Volume2,
+  FlaskConical,
 } from 'lucide-react'
 import FlagIcon from './FlagIcon'
 import { useLanguage } from '../context/LanguageContext'
 import UpdateModal from './UpdateModal'
 import styles from './SettingsModal.module.css'
+import { configureUiSounds, playUiSound } from '../utils/uiSound'
 
 const SETTING_TABS = [
   { id: 'general', labelKey: 'settings_general', icon: Sliders },
@@ -97,6 +100,10 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
   const [isolateVersionFolders, setIsolateVersionFolders] = useState(true)
   const [disableVideoBg, setDisableVideoBg] = useState(false)
   const [enableAnimations, setEnableAnimations] = useState(true)
+  const [liquidGlass, setLiquidGlass] = useState(false)
+  const [liquidGlassFps, setLiquidGlassFps] = useState(30)
+  const [uiSounds, setUiSounds] = useState(true)
+  const [uiSoundVolume, setUiSoundVolume] = useState(22)
   const [gcPreset, setGcPreset] = useState('aikar')
   const [serverAutoConnect, setServerAutoConnect] = useState('')
   const [discordRpc, setDiscordRpc] = useState(true)
@@ -200,6 +207,10 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
       setDisableVideoBg(Boolean(s.disableVideoBg))
     if (s.enableAnimations !== undefined)
       setEnableAnimations(Boolean(s.enableAnimations))
+    if (s.liquidGlass !== undefined) setLiquidGlass(Boolean(s.liquidGlass))
+    if (s.liquidGlassFps !== undefined) setLiquidGlassFps(Math.max(15, Math.min(60, Number(s.liquidGlassFps) || 30)))
+    if (s.uiSounds !== undefined) setUiSounds(Boolean(s.uiSounds))
+    if (s.uiSoundVolume !== undefined) setUiSoundVolume(Math.round(Number(s.uiSoundVolume) * 100))
     if (s.gcPreset) setGcPreset(s.gcPreset)
     if (s.serverAutoConnect) setServerAutoConnect(s.serverAutoConnect)
     if (s.discordRpc !== undefined) setDiscordRpc(Boolean(s.discordRpc))
@@ -226,6 +237,7 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
     if (nextMode) {
       setDisableVideoBg(true)
       setEnableAnimations(false)
+      setLiquidGlass(false)
       setRamMin(1)
       setRamMax(2)
       setGcPreset('potato')
@@ -234,7 +246,9 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
         await window.vibe?.applyPotatoOptions(gameDir)
       } catch (e) {}
 
+      const savedSettings = (await window.vibe?.storeGet('settings')) || {}
       const newSettings = {
+        ...savedSettings,
         ramMin: 1,
         ramMax: 2,
         javaMode: javaMode || 'auto',
@@ -243,6 +257,10 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
         isolateVersionFolders: Boolean(isolateVersionFolders),
         disableVideoBg: true,
         enableAnimations: false,
+        liquidGlass: false,
+        liquidGlassFps: 15,
+        uiSounds: false,
+        uiSoundVolume: 0,
         gcPreset: 'potato',
         potatoMode: true,
         serverAutoConnect: serverAutoConnect.trim(),
@@ -253,11 +271,14 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
       try {
         localStorage.setItem('vibelauncher_settings', JSON.stringify(newSettings))
       } catch (e) {}
+      configureUiSounds(newSettings)
 
       setPotatoToast(true)
       setTimeout(() => setPotatoToast(false), 4500)
     } else {
+      const savedSettings = (await window.vibe?.storeGet('settings')) || {}
       const newSettings = {
+        ...savedSettings,
         ramMin: Number(ramMin) || 1,
         ramMax: Number(ramMax) || 4,
         javaMode: javaMode || 'auto',
@@ -266,6 +287,10 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
         isolateVersionFolders: Boolean(isolateVersionFolders),
         disableVideoBg: Boolean(disableVideoBg),
         enableAnimations: Boolean(enableAnimations),
+        liquidGlass: Boolean(liquidGlass),
+        liquidGlassFps: Number(liquidGlassFps),
+        uiSounds: Boolean(uiSounds),
+        uiSoundVolume: Math.max(0, Math.min(1, Number(uiSoundVolume) / 100)),
         gcPreset: gcPreset || 'aikar',
         potatoMode: false,
         serverAutoConnect: serverAutoConnect.trim(),
@@ -275,11 +300,14 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
       try {
         localStorage.setItem('vibelauncher_settings', JSON.stringify(newSettings))
       } catch (e) {}
+      configureUiSounds(newSettings)
     }
   }
 
   const handleSave = async () => {
+    const savedSettings = (await window.vibe?.storeGet('settings')) || {}
     const newSettings = {
+      ...savedSettings,
       ramMin: Number(ramMin) || 1,
       ramMax: Number(ramMax) || 4,
       javaMode: javaMode || 'auto',
@@ -288,6 +316,10 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
       isolateVersionFolders: Boolean(isolateVersionFolders),
       disableVideoBg: Boolean(disableVideoBg),
       enableAnimations: Boolean(enableAnimations),
+      liquidGlass: potatoMode ? false : Boolean(liquidGlass),
+      liquidGlassFps: potatoMode ? 15 : Number(liquidGlassFps),
+      uiSounds: Boolean(uiSounds),
+      uiSoundVolume: Math.max(0, Math.min(1, Number(uiSoundVolume) / 100)),
       gcPreset: gcPreset || 'aikar',
       serverAutoConnect: serverAutoConnect.trim(),
       discordRpc: Boolean(discordRpc),
@@ -299,6 +331,8 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
       localStorage.setItem('vibelauncher_settings', JSON.stringify(newSettings))
     } catch (e) {}
     await window.vibe?.setDiscordEnabled(Boolean(discordRpc))
+    configureUiSounds(newSettings)
+    playUiSound('success')
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
@@ -315,9 +349,15 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
     setGameDir('')
     setIsolateVersionFolders(true)
     setDisableVideoBg(false)
+    setEnableAnimations(true)
+    setLiquidGlass(false)
+    setLiquidGlassFps(30)
+    setUiSounds(true)
+    setUiSoundVolume(22)
     setGcPreset('aikar')
     setServerAutoConnect('')
     setDiscordRpc(true)
+    configureUiSounds({ uiSounds: true, uiSoundVolume: 0.22 })
   }
 
   // Visual RAM memory percentage calculation
@@ -1039,6 +1079,48 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                     <span className={styles.slider} />
                   </label>
                 </div>
+              </div>
+
+              <div className={styles.card}>
+                <div className={styles.toggleCard}>
+                  <div className={styles.toggleInfo}>
+                    <span className={styles.toggleTitle}><FlaskConical size={15} /> Жидкое стекло <em className={styles.betaBadge}>BETA</em></span>
+                    <p className={styles.toggleDesc}>Оптическая линза вместо обычного размытия. Может сильнее нагружать видеокарту и на некоторых ПК работать нестабильно.</p>
+                  </div>
+                  <label className={styles.switch}>
+                    <input type="checkbox" checked={liquidGlass} disabled={potatoMode} onChange={(e) => setLiquidGlass(e.target.checked)} />
+                    <span className={styles.slider} />
+                  </label>
+                </div>
+                {potatoMode && <p className={styles.inputNote} style={{ marginTop: 9 }}>Недоступно в Potato Mode.</p>}
+                {liquidGlass && !potatoMode && (
+                  <div className={styles.liquidFpsRow}>
+                    <div><b>Плавность линзы</b><span>{liquidGlassFps} FPS</span></div>
+                    <input type="range" min="15" max="60" step="5" value={liquidGlassFps} onChange={(e) => setLiquidGlassFps(Number(e.target.value))} className={styles.rangeInput} />
+                    <p>15 FPS — экономно, 30 FPS — баланс, 60 FPS — максимально плавно и требовательно к GPU.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Card: calm interface sound feedback */}
+              <div className={styles.card}>
+                <div className={styles.toggleCard}>
+                  <div className={styles.toggleInfo}>
+                    <span className={styles.toggleTitle}><Volume2 size={15} /> Звуки интерфейса</span>
+                    <p className={styles.toggleDesc}>Короткие тихие сигналы для кнопок, меню, успеха и ошибок.</p>
+                  </div>
+                  <label className={styles.switch}>
+                    <input type="checkbox" checked={uiSounds} onChange={(e) => setUiSounds(e.target.checked)} />
+                    <span className={styles.slider} />
+                  </label>
+                </div>
+                {uiSounds && (
+                  <div className={styles.soundVolumeRow}>
+                    <span>Громкость</span>
+                    <input type="range" min="0" max="60" value={uiSoundVolume} onChange={(e) => setUiSoundVolume(Number(e.target.value))} className={styles.rangeInput} />
+                    <b>{uiSoundVolume}%</b>
+                  </div>
+                )}
               </div>
 
               {/* Card 2: Performance / Battery saver mode */}

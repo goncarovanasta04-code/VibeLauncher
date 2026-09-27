@@ -217,21 +217,11 @@ async function getModrinthProjectVersions({ slugOrId, mcVersion, loader, type = 
       params.game_versions = JSON.stringify([mcVersion])
     }
 
-    let res = await axios.get(`https://api.modrinth.com/v2/project/${slugOrId}/version`, {
+    const res = await axios.get(`https://api.modrinth.com/v2/project/${encodeURIComponent(slugOrId)}/version`, {
       params,
       headers: { 'User-Agent': 'VibeLauncher/1.0' },
       timeout: 15000,
     })
-
-    // If no versions found with strict game_version filter, fallback to all versions of the project
-    if ((!res.data || res.data.length === 0) && mcVersion) {
-      delete params.game_versions
-      res = await axios.get(`https://api.modrinth.com/v2/project/${slugOrId}/version`, {
-        params,
-        headers: { 'User-Agent': 'VibeLauncher/1.0' },
-        timeout: 15000,
-      })
-    }
 
     const versions = (res.data || []).map((v) => {
       const primaryFile = v.files?.find((f) => f.primary) || v.files?.[0]
@@ -410,9 +400,14 @@ async function installModFile(
  */
 function getInstalledContent({ versionId, gameDir, isolateVersionFolders = true }) {
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
-  const baseDir = (versionId && isolateVersionFolders !== false)
-    ? path.join(rootDir, 'versions', versionId)
+  const safeVersionId = getSafeVersionId(versionId)
+  const baseDir = (safeVersionId && isolateVersionFolders !== false)
+    ? path.join(rootDir, 'versions', safeVersionId)
     : rootDir
+
+  if (versionId && isolateVersionFolders !== false && !safeVersionId) {
+    return { ok: false, error: 'Недопустимый ID версии' }
+  }
 
   const categories = [
     { key: 'mods', type: 'mod' },
