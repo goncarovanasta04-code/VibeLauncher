@@ -27,6 +27,7 @@ export default function Monochrome3DBackground({
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     let animationFrameId
+    let idleTimerId
     let width = (canvas.width = window.innerWidth)
     let height = (canvas.height = window.innerHeight)
     let isHidden = false
@@ -222,7 +223,12 @@ export default function Monochrome3DBackground({
 
     const render = (time) => {
       if (paused || isHidden) {
-        animationFrameId = requestAnimationFrame(render)
+        // A paused scene used to keep a 60 FPS requestAnimationFrame loop
+        // alive. Wake periodically instead; the effect restarts immediately
+        // when its props change and costs virtually nothing while hidden.
+        idleTimerId = window.setTimeout(() => {
+          animationFrameId = requestAnimationFrame(render)
+        }, 500)
         return
       }
 
@@ -408,6 +414,7 @@ export default function Monochrome3DBackground({
 
     return () => {
       cancelAnimationFrame(animationFrameId)
+      if (idleTimerId) clearTimeout(idleTimerId)
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('visibilitychange', handleVisibility)

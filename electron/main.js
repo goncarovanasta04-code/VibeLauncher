@@ -21,6 +21,7 @@ const {
   searchModrinth,
   getModrinthProjectDetails,
   getModrinthProjectVersions,
+  installPerformanceProfile,
   installModFile,
   installModpack,
   getInstalledContent,
@@ -95,6 +96,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      // When Minecraft is running the window is hidden.  Keep Chromium's
+      // background throttling enabled so it does not compete for CPU/GPU/RAM.
+      backgroundThrottling: true,
     },
     icon: getAppIcon(),
     show: false,
@@ -277,6 +281,20 @@ ipcMain.handle('mods:getVersions', async (_, params) => {
   return await getModrinthProjectVersions(params || {})
 })
 
+ipcMain.handle('mods:installPerformanceProfile', async (_, opts) => {
+  const settings = store.get('settings') || {}
+  const isolateVersionFolders = opts.isolateVersionFolders !== undefined
+    ? opts.isolateVersionFolders
+    : settings.isolateVersionFolders !== false
+  return await installPerformanceProfile({
+    ...opts,
+    gameDir: opts.gameDir || settings.gameDir,
+    isolateVersionFolders,
+  }, (progress) => {
+    mainWindow?.webContents.send('mods:installProgress', progress)
+  })
+})
+
 ipcMain.handle('mods:installFile', async (_, opts) => {
   const settings = store.get('settings') || {}
   const isolateVersionFolders =
@@ -390,6 +408,7 @@ ipcMain.handle('game:launch', async (_, opts) => {
       if (mainWindow && !mainWindow.isDestroyed() && isGameProcessRunning) {
         try {
           mainWindow.webContents.send('game:started')
+          mainWindow.webContents.setFrameRate?.(1)
           mainWindow.hide()
         } catch (e) {
           console.warn('[Main] Window hide error:', e.message)
@@ -480,6 +499,7 @@ ipcMain.handle('game:launch', async (_, opts) => {
         if (mainWindow.isMinimized()) {
           mainWindow.restore()
         }
+        mainWindow.webContents.setFrameRate?.(60)
         mainWindow.show()
         mainWindow.focus()
         mainWindow.webContents.send('game:stopped')
@@ -638,4 +658,3 @@ ipcMain.on('open:external', (_, url) => {
     console.warn('[Security] Invalid URL rejected:', url)
   }
 })
-

@@ -9,18 +9,30 @@
 }
 
 .sidebar {
+  position: relative;
   width: 216px;
   flex: 0 0 216px;
   display: flex;
   flex-direction: column;
   padding: 20px 12px 16px;
-  background: var(--bg-glass, rgba(10, 14, 22, 0.88));
+  background: linear-gradient(180deg, rgba(8, 12, 19, .91), rgba(5, 8, 13, .84));
   border-right: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
   user-select: none;
   transition: background 0.3s ease, border-color 0.3s ease;
 }
+
+/* Static depth, rather than a permanently animated/blurred decorative layer. */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 76px 0 68px;
+  pointer-events: none;
+  background: radial-gradient(ellipse 100% 34% at 0 12%, rgba(43, 129, 196, .09), transparent 74%);
+  opacity: .8;
+}
+.sidebar > * { position: relative; z-index: 1; }
 
 .brand {
   display: flex;
@@ -65,7 +77,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 14px 0;
+  padding: 16px 0;
 }
 
 .navItem {
@@ -76,15 +88,18 @@
   width: 100%;
   height: 42px;
   padding: 0 14px;
-  border: 1px solid transparent;
+  border: 1px solid transparent !important;
   border-radius: 10px;
   color: #94a3b8;
-  background: transparent;
+  background: transparent !important;
   font-size: 13.5px;
   font-weight: 550;
   cursor: pointer;
   text-align: left;
-  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: color 160ms ease, background 160ms ease, transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .navItem:hover {
@@ -95,9 +110,9 @@
 
 .navItemActive {
   color: #ffffff;
-  background: linear-gradient(90deg, rgba(56, 189, 248, 0.14) 0%, rgba(56, 189, 248, 0.03) 100%);
-  border-color: rgba(56, 189, 248, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(90deg, rgba(56, 189, 248, .17), rgba(56, 189, 248, .035) 72%, transparent) !important;
+  border-color: rgba(113, 208, 255, .24) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 4px 13px rgba(0, 0, 0, .18) !important;
 }
 
 .navItemActive::before {
@@ -126,7 +141,7 @@
   height: 40px;
   padding: 0 12px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.035) !important;
   border: 1px solid rgba(255, 255, 255, 0.06);
   color: #94a3b8;
   font-size: 13px;
@@ -156,11 +171,11 @@
   min-height: 64px;
   display: flex;
   align-items: center;
-  padding: 0 16px 0 24px;
+  padding: 0 12px 0 18px;
   border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.05));
-  background: var(--bg-glass, rgba(7, 10, 16, 0.45));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: linear-gradient(90deg, rgba(5, 8, 13, .72), rgba(8, 13, 21, .46));
+  backdrop-filter: blur(8px) saturate(115%);
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
   -webkit-app-region: drag;
   z-index: 10;
   transition: background 0.3s ease, border-color 0.3s ease;
@@ -182,7 +197,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 14px;
+  margin-right: 10px;
 }
 
 .actionBtn {
@@ -250,12 +265,12 @@
 /* Account Widget */
 .accountArea {
   position: relative;
-  margin-right: 14px;
+  margin-right: 10px;
 }
 
 .accountButton {
-  min-width: 190px;
-  height: 44px;
+  min-width: 184px;
+  height: 42px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -532,7 +547,7 @@
     flex-basis: 190px;
   }
   .accountButton {
-    min-width: 160px;
+    min-width: 154px;
   }
   .quickActions {
     margin-right: 8px;
@@ -540,6 +555,12 @@
   .actionBtn span {
     display: none;
   }
+  .actionBtn { width: 34px; justify-content: center; padding: 0; }
+  .topbar { padding-left: 12px; }
+  .quickActions { gap: 5px; margin-right: 7px; }
+  .accountArea { margin-right: 7px; }
+  .windowControls { gap: 2px; }
+  .windowControls button { width: 30px; }
 }
 
 /* ==========================================================================

@@ -871,8 +871,13 @@ async function launchMinecraft(opts, onLog, onProgress) {
   // Check physical RAM availability on the PC to avoid 'Could not reserve enough space'
   try {
     const totalPhysicalMb = Math.round(os.totalmem() / 1024 / 1024)
-    // Always leave at least 1500MB free for Windows and background apps
-    const safeMaxAllocMb = Math.max(1024, totalPhysicalMb - 1500)
+    const freePhysicalMb = Math.round(os.freemem() / 1024 / 1024)
+    // Reserving a heap solely from total RAM is a common source of freezes on
+    // PCs with browsers/Discord open.  Respect both installed and currently
+    // available memory, always retaining room for Windows and the launcher.
+    const hardwareCapMb = Math.max(1024, totalPhysicalMb - 1536)
+    const headroomCapMb = Math.max(1024, freePhysicalMb - 768)
+    const safeMaxAllocMb = Math.min(hardwareCapMb, headroomCapMb)
     if (numRamMax * 1024 > safeMaxAllocMb) {
       numRamMax = Math.max(1, Math.floor(safeMaxAllocMb / 1024))
     }
@@ -891,6 +896,7 @@ async function launchMinecraft(opts, onLog, onProgress) {
     customJvmArgs.push(
       '-XX:+UseG1GC',
       '-XX:MaxGCPauseMillis=50',
+      '-XX:+UseStringDeduplication',
       '-XX:+OptimizeStringConcat'
     )
   } else if (gc === 'aikar') {
@@ -904,6 +910,7 @@ async function launchMinecraft(opts, onLog, onProgress) {
       '-XX:G1ReservePercent=15',
       '-XX:InitiatingHeapOccupancyPercent=25',
       '-XX:SurvivorRatio=32',
+      '-XX:+UseStringDeduplication',
       '-XX:+OptimizeStringConcat'
     )
   } else if (gc === 'shenandoah') {

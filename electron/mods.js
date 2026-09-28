@@ -353,6 +353,75 @@ async function getModrinthProjectVersions({ slugOrId, mcVersion, loader, type = 
   }
 }
 
+// Visual-performance profile: these projects improve renderer, culling and
+// memory behaviour without rewriting the player's graphics settings.  Every
+// file is still resolved from Modrinth for the exact Minecraft version/loader.
+const PERFORMANCE_PROJECTS = {
+  fabric: ['sodium', 'lithium', 'ferrite-core', 'entityculling', 'modernfix', 'immediatelyfast'],
+  quilt: ['sodium', 'lithium', 'ferrite-core', 'entityculling', 'modernfix', 'immediatelyfast'],
+  forge: ['rubidium', 'ferrite-core', 'entityculling', 'modernfix'],
+  neoforge: ['embeddium', 'ferrite-core', 'entityculling', 'modernfix'],
+}
+
+async function installPerformanceProfile({ versionId, mcVersion, loader, gameDir, isolateVersionFolders = true }, onProgress) {
+  const normalizedLoader = String(loader || '').toLowerCase()
+  const projects = PERFORMANCE_PROJECTS[normalizedLoader]
+  if (!projects) {
+    return { ok: false, error: 'Профиль производительности доступен для Fabric, Quilt, Forge и NeoForge.' }
+  }
+  if (!getSafeVersionId(versionId) || !mcVersion) {
+    return { ok: false, error: 'Не выбрана корректная версия Minecraft.' }
+  }
+
+  const installed = []
+  const skipped = []
+  for (let index = 0; index < projects.length; index += 1) {
+    const slug = projects[index]
+    if (onProgress) onProgress({
+      task: `Подбор ${slug} (${index + 1}/${projects.length})`,
+      current: index,
+      total: projects.length,
+    })
+    const versionResult = await getModrinthProjectVersions({
+      slugOrId: slug,
+      mcVersion,
+      loader: normalizedLoader,
+      type: 'mod',
+    })
+    const selected = versionResult?.versions?.[0]
+    if (!selected?.file?.url || !selected.file.filename) {
+      skipped.push(slug)
+      continue
+    }
+    const installResult = await installModFile({
+      fileUrl: selected.file.url,
+      fileName: selected.file.filename,
+      versionId,
+      type: 'mod',
+      projectId: slug,
+      projectSlug: slug,
+      projectTitle: slug,
+      gameDir,
+      isolateVersionFolders,
+      dependencies: selected.dependencies,
+      mcVersion,
+      loader: normalizedLoader,
+    }, (progress) => {
+      if (onProgress) onProgress({
+        ...progress,
+        task: `${index + 1}/${projects.length}: ${progress.task}`,
+        current: index + (Number(progress.current) || 0) / 100,
+        total: projects.length,
+      })
+    })
+    if (installResult?.ok) installed.push(slug)
+    else skipped.push(slug)
+  }
+
+  if (onProgress) onProgress({ task: 'Профиль производительности готов', current: projects.length, total: projects.length })
+  return { ok: installed.length > 0, installed, skipped }
+}
+
 /**
  * Installs (downloads) a mod/shader/resourcepack file into the version folder
  */
@@ -973,6 +1042,7 @@ module.exports = {
   searchModrinth,
   getModrinthProjectDetails,
   getModrinthProjectVersions,
+  installPerformanceProfile,
   installModFile,
   installModpack,
   getInstalledContent,

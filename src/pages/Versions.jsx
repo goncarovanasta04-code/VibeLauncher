@@ -12,6 +12,8 @@ import {
   X,
   Layers,
   ChevronRight,
+  Box,
+  Gamepad2,
 } from 'lucide-react'
 import styles from './Versions.module.css'
 import { useLanguage } from '../context/LanguageContext'
@@ -193,6 +195,22 @@ export default function Versions({ onSelectVersion, onNavigate }) {
 
   return (
     <div className={styles.page}>
+      <header className={styles.pageIntro}>
+        <div>
+          <span className={styles.eyebrow}><Layers size={13} /> ИГРОВАЯ БИБЛИОТЕКА</span>
+          <h1>Версии Minecraft</h1>
+          <p>Устанавливайте чистые версии и загрузчики, выбирайте готовые инстансы для запуска.</p>
+        </div>
+        <div className={styles.introStats}>
+          <div className={styles.statCard}>
+            <span className={styles.statIcon}><Gamepad2 size={17} /></span>
+            <div><strong>{localVersions.length}</strong><span>установлено</span></div>
+          </div>
+          <button type="button" className={styles.introFolderBtn} onClick={handleOpenVersionsFolder}>
+            <Folder size={15} /><span>Открыть папку</span>
+          </button>
+        </div>
+      </header>
       <div className={`${styles.panel} glass`}>
         {/* Header Tabs & Controls */}
         <div className={styles.header}>
@@ -306,9 +324,15 @@ export default function Versions({ onSelectVersion, onNavigate }) {
 
         {/* Progress bar */}
         {progress && (
-          <div className={styles.progressWrap}>
+          <section className={styles.progressWrap} aria-live="polite">
             <div className={styles.progressLabel}>
-              <span className={styles.progressTask}>{progress.task}</span>
+              <div className={styles.progressIdentity}>
+                <span className={styles.progressIcon}><Download size={15} /></span>
+                <div>
+                  <strong>Устанавливаем версию</strong>
+                  <span className={styles.progressTask}>{progress.task || 'Подготавливаем файлы…'}</span>
+                </div>
+              </div>
               <span className={styles.progressPct}>{progressPct}%</span>
             </div>
             <div className={styles.progressTrack}>
@@ -317,7 +341,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-          </div>
+          </section>
         )}
 
         {/* Version list */}
@@ -344,10 +368,7 @@ export default function Versions({ onSelectVersion, onNavigate }) {
               filteredLocal.map((v) => (
                 <div key={v.id} className={styles.row}>
                   <div className={styles.rowLeft}>
-                    <span
-                      className={styles.typeDot}
-                      style={{ background: TYPE_COLORS[v.type] || '#ffffff' }}
-                    />
+                    <span className={styles.instanceIcon} style={{ '--instance-color': TYPE_COLORS[v.type] || '#ffffff' }}><Box size={17} /></span>
                     <div className={styles.versionInfoCol}>
                       <span className={styles.versionId}>{v.label || v.id}</span>
                       <span className={styles.versionSubId}>

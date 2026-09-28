@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('vibe', {
   searchMods: (params) => ipcRenderer.invoke('mods:searchModrinth', params),
   getModDetails: (slugOrId) => ipcRenderer.invoke('mods:getDetails', slugOrId),
   getModVersions: (params) => ipcRenderer.invoke('mods:getVersions', params),
+  installPerformanceProfile: (opts) => ipcRenderer.invoke('mods:installPerformanceProfile', opts),
   installModFile: (opts) => ipcRenderer.invoke('mods:installFile', opts),
   installModpack: (opts) => ipcRenderer.invoke('mods:installModpack', opts),
   getInstalledMods: (versionId, gameDir) => ipcRenderer.invoke('mods:getInstalled', { versionId, gameDir }),
@@ -83,4 +84,3 @@ contextBridge.exposeInMainWorld('vibe', {
   // External
   openExternal: (url) => ipcRenderer.send('open:external', url),
 })
-

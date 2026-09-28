@@ -87,6 +87,7 @@ export default function App() {
     const currentImage = new Image()
     const previousImage = bgLayers.prev ? new Image() : null
     let animationFrame = null
+    let lastDrawAt = 0
     let active = true
     let currentReady = false
     let previousReady = !previousImage
@@ -108,10 +109,20 @@ export default function App() {
     const drawWallpaper = (now) => {
       if (!active) return
       animationFrame = null
-      if (!currentReady) {
-        if (enableAnimations) animationFrame = requestAnimationFrame(drawWallpaper)
+      // Outside the launch page the wallpaper is deliberately still.  This
+      // preserves the visual hierarchy of utility pages and stops needless
+      // canvas work while browsing catalogues and settings.
+      const shouldAnimate = enableAnimations && activePage === 'home' && !isGameRunning
+      const targetFps = liquidGlassEnabled ? liquidGlassFps : 24
+      if (shouldAnimate && now - lastDrawAt < 1000 / targetFps) {
+        animationFrame = requestAnimationFrame(drawWallpaper)
         return
       }
+      if (!currentReady) {
+        if (shouldAnimate) animationFrame = requestAnimationFrame(drawWallpaper)
+        return
+      }
+      lastDrawAt = now
 
       const width = Math.max(1, window.innerWidth)
       const height = Math.max(1, window.innerHeight)
@@ -139,12 +150,12 @@ export default function App() {
         drawLayer(ctx, currentImage, width, height, phase, 1)
       }
       ctx.globalAlpha = 1
-      if (enableAnimations) animationFrame = requestAnimationFrame(drawWallpaper)
+      if (shouldAnimate) animationFrame = requestAnimationFrame(drawWallpaper)
     }
 
     currentImage.onload = () => {
       currentReady = true
-      if (!enableAnimations) drawWallpaper(performance.now())
+      if (!(enableAnimations && activePage === 'home' && !isGameRunning)) drawWallpaper(performance.now())
     }
     currentImage.src = bgLayers.current
     if (previousImage) {
@@ -158,7 +169,7 @@ export default function App() {
       active = false
       if (animationFrame) cancelAnimationFrame(animationFrame)
     }
-  }, [bgLayers.current, bgLayers.prev, bgLayers.fading, currentTheme?.is3D, currentTheme?.is3DMonochrome, currentTheme?.isPlainBg, enableAnimations])
+  }, [bgLayers.current, bgLayers.prev, bgLayers.fading, currentTheme?.is3D, currentTheme?.is3DMonochrome, currentTheme?.isPlainBg, enableAnimations, activePage, isGameRunning, liquidGlassEnabled, liquidGlassFps])
 
   useEffect(() => {
     const onInterfaceThemeChange = ({ detail }) => {
@@ -528,9 +539,6 @@ export default function App() {
 
         {activePage === 'versions' && (
           <div className={styles.pageWorkspace}>
-            <div className={styles.pageHeading}>
-              <div><h1>Версии</h1><p>Установленные инстансы и установка Minecraft.</p></div>
-            </div>
             <Versions onSelectVersion={(version) => { setSelectedVersion(version); window.vibe?.storeSet('lastVersion', version); setActivePage('home') }} />
           </div>
         )}
