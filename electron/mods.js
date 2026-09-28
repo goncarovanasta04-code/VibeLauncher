@@ -66,6 +66,74 @@ function writeContentManifest(rootDir, versionId, data, isolateVersionFolders = 
   }
 }
 
+// Russian to English search keywords dictionary for Modrinth
+const RU_EN_MOD_SYNONYMS = {
+  'содиум': 'sodium',
+  'рубидий': 'rubidium',
+  'эмбеддиум': 'embeddium',
+  'оптифайн': 'optifine',
+  'ирис': 'iris',
+  'шейдер': 'shader',
+  'шейдеры': 'shaders',
+  'миникарта': 'minimap',
+  'карта': 'minimap map',
+  'джетпак': 'jetpack',
+  'мебель': 'furniture',
+  'оружие': 'guns weapon',
+  'магия': 'magic spell',
+  'еда': 'food delight',
+  'ферма': 'farming delight',
+  'броня': 'armor',
+  'техника': 'tech technology',
+  'технологии': 'technology machines',
+  'анимации': 'animations fresh',
+  'физика': 'physics',
+  'голос': 'simple voice chat',
+  'голосовой': 'voice chat',
+  'двойной прыжок': 'double jump',
+  'зум': 'zoom',
+  'крафты': 'jei recipes',
+  'рецепты': 'jei recipes',
+  'джеи': 'jei',
+  'рей': 'rei',
+  'эми': 'emi',
+  'сундук': 'chests',
+  'сундуки': 'chests',
+  'рюкзак': 'backpack',
+  'рюкзаки': 'backpacks',
+  'оптимизация': 'optimization performance',
+  'фпс': 'fps',
+  'криэйт': 'create',
+  'крейт': 'create',
+  'меканизм': 'mekanism',
+  'ботания': 'botania',
+  'астрал': 'astral',
+  'сумеречный лес': 'twilight forest',
+  'твайлайт': 'twilight forest',
+  'мобы': 'mobs',
+  'боссы': 'bosses',
+  'данжи': 'dungeons',
+  'структуры': 'structures',
+  'биомы': 'biomes',
+  'звуки': 'sound',
+  'освещение': 'dynamic lights',
+}
+
+function expandSearchQuery(rawQuery) {
+  if (!rawQuery || typeof rawQuery !== 'string') return ''
+  const trimmed = rawQuery.trim()
+  const lower = trimmed.toLowerCase()
+  if (RU_EN_MOD_SYNONYMS[lower]) {
+    return RU_EN_MOD_SYNONYMS[lower]
+  }
+  for (const [ru, en] of Object.entries(RU_EN_MOD_SYNONYMS)) {
+    if (lower.includes(ru)) {
+      return lower.replace(new RegExp(ru, 'g'), en).trim()
+    }
+  }
+  return trimmed
+}
+
 /**
  * Search Modrinth for mods, modpacks, shaders, resourcepacks, and datapacks
  */
@@ -78,6 +146,7 @@ async function searchModrinth({
   offset = 0,
 }) {
   try {
+    const effectiveQuery = expandSearchQuery(query)
     const facets = []
 
     // Project type facet: mod, modpack, resourcepack, shader, datapack
@@ -90,13 +159,15 @@ async function searchModrinth({
 
     // Version filter: normalize e.g. "fabric-loader-0.16.10-1.20.1" or "better_mc_1_20_1" -> "1.20.1"
     let cleanMcVer = mcVersion ? mcVersion.trim() : null
-    if (cleanMcVer) {
-      const match = cleanMcVer.replace(/_/g, '.').match(/(1\.\d+(?:\.\d+)?)/)
+    if (cleanMcVer && cleanMcVer !== 'all') {
+      const match = cleanMcVer.replace(/_/g, '.').match(/((?:1\.\d+|2[6-9])(?:\.\d+)*)/)
       if (match) cleanMcVer = match[1]
-      else if (!/^1\.\d+/.test(cleanMcVer)) cleanMcVer = null
+      else if (!/^(?:1\.\d+|2[6-9])/.test(cleanMcVer)) cleanMcVer = null
+    } else {
+      cleanMcVer = null
     }
 
-    if (cleanMcVer && pType !== 'modpack') {
+    if (cleanMcVer) {
       facets.push([`versions:${cleanMcVer}`])
     }
 
@@ -111,21 +182,46 @@ async function searchModrinth({
       facets.push([`categories:${loader.toLowerCase().trim()}`])
     }
 
-    const params = {
-      query: query.trim(),
-      facets: JSON.stringify(facets),
-      index: 'downloads',
-      limit: limit,
-      offset: offset,
+    const queryModrinthApi = async (curQuery, curFacets) => {
+      const params = {
+        query: curQuery,
+        facets: JSON.stringify(curFacets),
+        index: curQuery ? 'relevance' : 'downloads',
+        limit: Math.max(1, Math.min(100, Number(limit) || 30)),
+        offset: Math.max(0, Number(offset) || 0),
+      }
+      const res = await axios.get('https://api.modrinth.com/v2/search', {
+        params,
+        headers: { 'User-Agent': 'VibeLauncher/1.0 (contact@vibelauncher.app)' },
+        timeout: 15000,
+      })
+      return res.data || {}
     }
 
-    const res = await axios.get('https://api.modrinth.com/v2/search', {
-      params,
-      headers: { 'User-Agent': 'VibeLauncher/1.0 (contact@vibelauncher.app)' },
-      timeout: 15000,
-    })
+    // Attempt 1: Strict query with version and loader facets
+    let data = await queryModrinthApi(effectiveQuery, facets)
+    let hits = data.hits || []
 
-    const hits = res.data?.hits || []
+    // Attempt 2: If query had 0 hits and was filtered by version, relax version filter
+    if (hits.length === 0 && effectiveQuery && cleanMcVer) {
+      const facetsNoVer = facets.filter((f) => !f[0]?.startsWith('versions:'))
+      const fallbackData = await queryModrinthApi(effectiveQuery, facetsNoVer)
+      if ((fallbackData.hits || []).length > 0) {
+        data = fallbackData
+        hits = fallbackData.hits
+      }
+    }
+
+    // Attempt 3: If still 0 hits and loader was filtered, relax loader filter
+    if (hits.length === 0 && effectiveQuery && loader && loader !== 'all') {
+      const facetsPlain = [[`project_type:${pType}`]]
+      const fallbackData = await queryModrinthApi(effectiveQuery, facetsPlain)
+      if ((fallbackData.hits || []).length > 0) {
+        data = fallbackData
+        hits = fallbackData.hits
+      }
+    }
+
     const results = hits.map((hit) => ({
       id: hit.project_id,
       slug: hit.slug,
@@ -140,10 +236,16 @@ async function searchModrinth({
       projectType: hit.project_type,
     }))
 
-    return { ok: true, total: res.data?.total_hits || 0, hits: results }
+    return {
+      ok: true,
+      total: data.total_hits || results.length,
+      hits: results,
+      limit: Number(limit) || 30,
+      offset: Number(offset) || 0,
+    }
   } catch (err) {
     console.error('[Modrinth Search Error]:', err.message)
-    return { ok: false, error: err.message, hits: [] }
+    return { ok: false, error: err.message, hits: [], total: 0 }
   }
 }
 

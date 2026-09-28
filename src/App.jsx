@@ -1,9 +1,9 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react'
-import TitleBar from './components/TitleBar'
+import { lazy, Suspense, useState, useEffect, useRef, startTransition } from 'react'
+import AppShell from './components/AppShell'
 import Home from './pages/Home'
 import AppSplashScreen from './components/AppSplashScreen'
 import Monochrome3DBackground from './components/Monochrome3DBackground'
-import { applyTheme, applyInterfaceTheme, getCurrentTheme } from './utils/themeManager'
+import { THEMES, applyTheme, applyInterfaceTheme, getCurrentTheme } from './utils/themeManager'
 import bgVideo from './assets/bg.mp4'
 import bgImage from './assets/bg.jpg'
 import packageInfo from '../package.json'
@@ -28,12 +28,10 @@ export default function App() {
   const [selectedVersion, setSelectedVersion] = useState(null)
   const [localVersions, setLocalVersions] = useState([])
   const [showLogin, setShowLogin] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
-  const [showVersionsManager, setShowVersionsManager] = useState(false)
-  const [showModsModal, setShowModsModal] = useState(false)
   const [showChangelogModal, setShowChangelogModal] = useState(false)
   const [showThemesModal, setShowThemesModal] = useState(false)
+  const [activePage, setActivePage] = useState('home')
   const [autoUpdateInfo, setAutoUpdateInfo] = useState(null)
   const [videoLoaded, setVideoLoaded] = useState(false)
   const [disableVideoBg, setDisableVideoBg] = useState(false)
@@ -50,6 +48,11 @@ export default function App() {
   const videoRef = useRef(null)
   const cardRef = useRef(null)
   const sceneCanvasRef = useRef(null)
+  // A tiny off-screen render of the static wallpaper.  The WebGL glass samples
+  // this canvas instead of a still <img>, so the refraction travels with the
+  // Ken Burns background just like it does with the 3D canvas.
+  const wallpaperCanvasRef = useRef(null)
+  const wallpaperMotionStartRef = useRef(performance.now())
 
   const checkSettings = async () => {
     const s = await window.vibe?.storeGet('settings')
@@ -78,8 +81,88 @@ export default function App() {
   }, [liquidGlassEnabled])
 
   useEffect(() => {
+    const canvas = wallpaperCanvasRef.current
+    if (!canvas || currentTheme?.is3D || currentTheme?.is3DMonochrome || currentTheme?.isPlainBg) return undefined
+
+    const currentImage = new Image()
+    const previousImage = bgLayers.prev ? new Image() : null
+    let animationFrame = null
+    let active = true
+    let currentReady = false
+    let previousReady = !previousImage
+    let transitionStartedAt = null
+
+    const easeOut = (value) => 1 - Math.pow(1 - value, 3)
+    const drawLayer = (ctx, image, width, height, phase, opacity) => {
+      if (!image || !opacity) return
+      const zoom = 1.05 + Math.sin(phase) * 0.035
+      const driftX = Math.sin(phase * 0.72) * width * 0.005
+      const driftY = Math.cos(phase * 0.58) * height * 0.0035
+      const cover = Math.max(width / image.naturalWidth, height / image.naturalHeight) * zoom
+      const drawWidth = image.naturalWidth * cover
+      const drawHeight = image.naturalHeight * cover
+      ctx.globalAlpha = opacity
+      ctx.drawImage(image, (width - drawWidth) / 2 + driftX, (height - drawHeight) / 2 + driftY, drawWidth, drawHeight)
+    }
+
+    const drawWallpaper = (now) => {
+      if (!active) return
+      animationFrame = null
+      if (!currentReady) {
+        if (enableAnimations) animationFrame = requestAnimationFrame(drawWallpaper)
+        return
+      }
+
+      const width = Math.max(1, window.innerWidth)
+      const height = Math.max(1, window.innerHeight)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      const pixelWidth = Math.round(width * dpr)
+      const pixelHeight = Math.round(height * dpr)
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth
+        canvas.height = pixelHeight
+      }
+
+      const ctx = canvas.getContext('2d', { alpha: false })
+      if (!ctx) return
+      const elapsed = (now - wallpaperMotionStartRef.current) / 18000
+      const phase = elapsed * Math.PI * 2
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.clearRect(0, 0, width, height)
+      if (previousImage && previousReady && bgLayers.fading) {
+        if (transitionStartedAt === null) transitionStartedAt = now
+        const progress = Math.min(1, (now - transitionStartedAt) / 820)
+        const eased = easeOut(progress)
+        drawLayer(ctx, previousImage, width, height, phase, 1 - eased)
+        drawLayer(ctx, currentImage, width, height, phase, eased)
+      } else {
+        drawLayer(ctx, currentImage, width, height, phase, 1)
+      }
+      ctx.globalAlpha = 1
+      if (enableAnimations) animationFrame = requestAnimationFrame(drawWallpaper)
+    }
+
+    currentImage.onload = () => {
+      currentReady = true
+      if (!enableAnimations) drawWallpaper(performance.now())
+    }
+    currentImage.src = bgLayers.current
+    if (previousImage) {
+      previousImage.onload = () => { previousReady = true }
+      previousImage.src = bgLayers.prev
+    }
+    if (currentImage.complete && currentImage.naturalWidth) currentReady = true
+    if (previousImage?.complete && previousImage.naturalWidth) previousReady = true
+    drawWallpaper(performance.now())
+    return () => {
+      active = false
+      if (animationFrame) cancelAnimationFrame(animationFrame)
+    }
+  }, [bgLayers.current, bgLayers.prev, bgLayers.fading, currentTheme?.is3D, currentTheme?.is3DMonochrome, currentTheme?.isPlainBg, enableAnimations])
+
+  useEffect(() => {
     const onInterfaceThemeChange = ({ detail }) => {
-      if (detail?.id !== 'graphite') setLiquidGlassEnabled(false)
+      // Interface theme changes no longer disable liquid glass
     }
     window.addEventListener('vibe-interface-theme-changed', onInterfaceThemeChange)
     return () => window.removeEventListener('vibe-interface-theme-changed', onInterfaceThemeChange)
@@ -139,12 +222,51 @@ export default function App() {
             prev: null,
             fading: false,
           }))
-        }, 800)
+        }, 1200)
       }
     }
     window.addEventListener('vibe-theme-changed', onThemeChange)
     return () => window.removeEventListener('vibe-theme-changed', onThemeChange)
   }, [])
+
+  // Auto-slideshow of static wallpapers with smooth Ken Burns zoom
+  const [slideshowActive, setSlideshowActive] = useState(false)
+
+  useEffect(() => {
+    window.__vibeAutoSlideshowActive = slideshowActive
+    const handleToggle = (e) => {
+      const nextState = e.detail?.active !== undefined ? e.detail.active : !slideshowActive
+      setSlideshowActive(nextState)
+      window.__vibeAutoSlideshowActive = nextState
+      try {
+        localStorage.setItem('vibelauncher_auto_slideshow', String(nextState))
+      } catch (err) {}
+      window.dispatchEvent(new CustomEvent('vibe-slideshow-state-changed', { detail: { active: nextState } }))
+    }
+    window.addEventListener('vibe-slideshow-toggle', handleToggle)
+    return () => window.removeEventListener('vibe-slideshow-toggle', handleToggle)
+  }, [slideshowActive])
+
+  const currentThemeRef = useRef(currentTheme)
+  useEffect(() => {
+    currentThemeRef.current = currentTheme
+  }, [currentTheme])
+
+  useEffect(() => {
+    if (!slideshowActive) return
+    const wallpaperList = THEMES.filter((t) => t.bgImage && !t.is3D && !t.is3DMonochrome && !t.isPlainBg && !t.isVideo)
+    if (wallpaperList.length === 0) return
+
+    const timer = setInterval(() => {
+      const curId = currentThemeRef.current?.id
+      let idx = wallpaperList.findIndex((t) => t.id === curId)
+      if (idx === -1) idx = 0
+      const nextIdx = (idx + 1) % wallpaperList.length
+      applyTheme(wallpaperList[nextIdx].id)
+    }, 6000)
+
+    return () => clearInterval(timer)
+  }, [slideshowActive])
 
   // Load saved profile & local versions on start
   useEffect(() => {
@@ -160,6 +282,18 @@ export default function App() {
 
       await checkSettings()
       await loadAccountsAndProfile()
+
+      // Load saved version on start
+      try {
+        let savedVer = await window.vibe?.storeGet('lastVersion')
+        if (!savedVer) {
+          const ls = localStorage.getItem('vibelauncher_last_version')
+          if (ls) savedVer = JSON.parse(ls)
+        }
+        if (savedVer) {
+          setSelectedVersion(savedVer)
+        }
+      } catch (e) {}
 
       await refreshLocalVersions()
 
@@ -286,8 +420,20 @@ export default function App() {
     }
   }
 
+  const handleNavigate = (page) => {
+    if (page === 'changelog') {
+      setShowChangelogModal(true)
+      return
+    }
+    if (page === 'themes') {
+      setShowThemesModal(true)
+      return
+    }
+    startTransition(() => setActivePage(page))
+  }
+
   return (
-    <div className={`${styles.root} ${currentTheme?.category === 'art' ? styles.staticArtTheme : ''}`}>
+    <div className={`${styles.root} ${currentTheme?.category === 'art' ? styles.staticArtTheme : ''} ${activePage !== 'home' ? styles.utilityPage : ''}`}>
       {/* 3D Interactive Void Background (Floating 3D wireframe polyhedra & horizon grid) */}
       {(currentTheme?.is3D || currentTheme?.is3DMonochrome) && (
         <Monochrome3DBackground
@@ -309,16 +455,9 @@ export default function App() {
       {/* Dynamic Theme Minecraft Wallpaper with smooth cross-fade */}
       {!currentTheme?.is3D && !currentTheme?.is3DMonochrome && !currentTheme?.isPlainBg && (
         <div className={styles.bgContainer}>
-          {bgLayers.prev && (
-            <div
-              className={`${styles.bgLayer} ${bgLayers.fading ? styles.bgLayerFading : styles.bgLayerActive}`}
-              style={{ backgroundImage: `url(${bgLayers.prev})` }}
-            />
-          )}
-          <div
-            className={`${styles.bgLayer} ${styles.bgLayerActive}`}
-            style={{ backgroundImage: `url(${bgLayers.current})` }}
-          />
+          {/* This same canvas is both the visible wallpaper and the source of
+              refraction.  One timeline means the lens cannot drift behind it. */}
+          <canvas ref={wallpaperCanvasRef} className={styles.wallpaperSource} aria-hidden="true" />
         </div>
       )}
 
@@ -352,14 +491,18 @@ export default function App() {
         }`}
       />
 
-      {/* Minimal Title Bar: Top-Left Brand + Темы */}
-      <TitleBar
+      <AppShell
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        profile={profile}
+        accounts={accounts}
+        onSelectAccount={handleSelectAccount}
+        onDeleteAccount={handleDeleteAccount}
+        onLogin={() => setShowLogin(true)}
         onOpenThemes={() => setShowThemesModal(true)}
-      />
-
-      {/* Main Page Content */}
-      <main className={styles.mainContent}>
-        <Home
+      >
+      <Suspense fallback={<div className={styles.pageLoading} aria-label="Загрузка страницы" />}>
+        {activePage === 'home' && <Home
           profile={profile}
           setProfile={setProfile}
           accounts={accounts}
@@ -368,25 +511,48 @@ export default function App() {
           selectedVersion={selectedVersion}
           setSelectedVersion={setSelectedVersion}
           cardRef={cardRef}
-          liquidSourceCanvasRef={sceneCanvasRef}
-          liquidLensEnabled={liquidGlassEnabled && Boolean(currentTheme?.is3D || currentTheme?.is3DMonochrome) && enableAnimations && !isGameRunning}
+          liquidSourceCanvasRef={
+            (currentTheme?.is3D || currentTheme?.is3DMonochrome)
+              ? sceneCanvasRef
+              : currentTheme?.isVideo
+                ? videoRef
+                : wallpaperCanvasRef
+          }
+          liquidLensEnabled={liquidGlassEnabled && enableAnimations && !isGameRunning}
           liquidLensFps={liquidGlassFps}
           onGameRunningChange={setIsGameRunning}
-          onNavigate={(target) => {
-            if (target === 'settings') setShowSettings(true)
-            else if (target === 'versions') {
-              refreshLocalVersions()
-              setShowVersionsManager(true)
-            } else if (target === 'mods') {
-              refreshLocalVersions()
-              setShowModsModal(true)
-            } else if (target === 'changelog') {
-              setShowChangelogModal(true)
-            }
-          }}
+          onNavigate={(target) => handleNavigate(target === 'mods' ? 'catalog' : target)}
           onLoginRequest={() => setShowLogin(true)}
-        />
-      </main>
+          showProfileControl={false}
+        />}
+
+        {activePage === 'versions' && (
+          <div className={styles.pageWorkspace}>
+            <div className={styles.pageHeading}>
+              <div><h1>Версии</h1><p>Установленные инстансы и установка Minecraft.</p></div>
+            </div>
+            <Versions onSelectVersion={(version) => { setSelectedVersion(version); window.vibe?.storeSet('lastVersion', version); setActivePage('home') }} />
+          </div>
+        )}
+
+        {activePage === 'catalog' && (
+          <ModsModal
+            embedded
+            activeVersion={selectedVersion || { id: '1.16.5', label: 'Fabric 1.16.5', type: 'fabric' }}
+            localVersions={localVersions}
+            onSelectVersion={(version) => { setSelectedVersion(version); window.vibe?.storeSet('lastVersion', version); refreshLocalVersions() }}
+          />
+        )}
+
+        {activePage === 'settings' && (
+          <SettingsModal
+            embedded
+            onClose={() => { setActivePage('home'); checkSettings() }}
+            onOpenWelcome={() => { setShowWelcomeModal(true) }}
+          />
+        )}
+      </Suspense>
+      </AppShell>
 
       <Suspense fallback={<div className={styles.modalLoading} aria-label="Loading" />}>
       {/* Login Modal */}
@@ -402,19 +568,6 @@ export default function App() {
         <ThemesModal onClose={() => setShowThemesModal(false)} />
       )}
 
-      {/* Settings Modal (☰) */}
-      {showSettings && (
-        <SettingsModal
-          onClose={() => {
-            setShowSettings(false)
-            checkSettings()
-          }}
-          onOpenWelcome={() => {
-            setShowSettings(false)
-            setShowWelcomeModal(true)
-          }}
-        />
-      )}
 
       {/* Welcome & Onboarding Tutorial Modal */}
       {showWelcomeModal && (
@@ -425,54 +578,12 @@ export default function App() {
         />
       )}
 
-      {/* Mods, Shaders & Resourcepacks Modal (🧩) */}
-      {showModsModal && (
-        <ModsModal
-          activeVersion={selectedVersion || { id: '1.16.5', label: 'Fabric 1.16.5', type: 'fabric' }}
-          localVersions={localVersions}
-          onSelectVersion={(v) => {
-            setSelectedVersion(v)
-            window.vibe?.storeSet('lastVersion', v)
-            refreshLocalVersions()
-          }}
-          onClose={() => {
-            setShowModsModal(false)
-            refreshLocalVersions()
-          }}
-        />
-      )}
 
       {/* Changelog Modal */}
       {showChangelogModal && (
         <ChangelogModal onClose={() => setShowChangelogModal(false)} />
       )}
 
-      {/* Versions Manager Modal */}
-      {showVersionsManager && (
-        <div className={styles.modalOverlay} onClick={() => setShowVersionsManager(false)}>
-          <div className={`${styles.versionsModal} glass`} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3>{t('versions_manager_title')}</h3>
-              <button
-                type="button"
-                className={styles.modalCloseBtn}
-                onClick={() => setShowVersionsManager(false)}
-              >
-                ✕
-              </button>
-            </div>
-            <div className={styles.modalBody}>
-              <Versions
-                onSelectVersion={(v) => {
-                  setSelectedVersion(v)
-                  setShowVersionsManager(false)
-                  refreshLocalVersions()
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Auto Update Modal on Detection */}
       {autoUpdateInfo && (

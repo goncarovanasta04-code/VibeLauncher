@@ -22,10 +22,11 @@
   animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10;
   
-  /* 1. ПОЛНАЯ ПРОЗРАЧНОСТЬ И ЛЁГКИЙ БЛЮР */
-  background: rgba(255, 255, 255, 0.04) !important;
-  backdrop-filter: blur(4px) saturate(120%) contrast(105%) !important;
-  -webkit-backdrop-filter: blur(4px) saturate(120%) contrast(105%) !important;
+  /* The WebGL layer is the lens itself.  Do not put a second blur over it: it
+     turns refraction into the flat frosted-glass effect the user can see. */
+  background: rgba(255, 255, 255, 0.018) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   
   /* 2. ОБЪЕМНАЯ ФАСКА СТЕКЛА (Apple Bevel Edge) */
   border-radius: 8px;
@@ -75,12 +76,16 @@
   opacity: 1;
 }
 
-/* Backdrop-filter samples the already-composited foreground in Chromium on
-   some GPUs, which creates a duplicate "reflection" of the launcher UI.
-   The WebGL lens is the backdrop for 3D scenes, so prevent that feedback loop. */
+/* Luxury liquid glass card styling */
 .refractiveCard {
+  background: rgba(8, 14, 22, 0.10) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25),
+    0 24px 60px rgba(0, 0, 0, 0.45) !important;
 }
 
 .fieldWrap {
@@ -437,14 +442,14 @@
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: 10px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: #141720 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85);
+  gap: 8px;
+  background: #080a10 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.96), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
   z-index: 500;
   animation: dropdownSpring 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -464,18 +469,18 @@
 
 .searchBox input {
   width: 100%;
-  padding-left: 30px !important;
-  height: 32px;
+  padding-left: 32px !important;
+  height: 34px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #10141d !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: 8px;
   color: #ffffff;
 }
 
 .searchBox input:focus {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.12);
+  border-color: #38bdf8 !important;
+  background: #141924 !important;
 }
 
 .clearSearchBtn {
@@ -601,11 +606,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  padding: 7px 10px;
   border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid transparent;
+  background: #0d1017;
+  color: rgba(255, 255, 255, 0.9);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -613,27 +618,28 @@
 }
 
 .versionItem:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #171c26;
+  border-color: rgba(255, 255, 255, 0.14);
   color: #ffffff;
 }
 
 .versionItemActive {
-  background: rgba(59, 130, 246, 0.15) !important;
-  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  background: rgba(37, 99, 235, 0.22) !important;
+  border: 1px solid rgba(59, 130, 246, 0.5) !important;
   color: #ffffff !important;
   font-weight: 600;
 }
 
 .versionItemModpack {
-  padding: 7px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.02);
-  margin-bottom: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  background: rgba(14, 21, 35, 0.88);
+  margin-bottom: 3px;
 }
 
 .versionItemModpack:hover {
-  background: rgba(56, 189, 248, 0.08);
-  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
 }
 
 .versionItemLeft {
@@ -1599,11 +1605,11 @@
 .dropdownMenu,
 .versionDropdown {
   border-radius: 18px;
-  background: linear-gradient(145deg, rgba(25, 35, 52, 0.94), rgba(7, 12, 21, 0.93)) !important;
-  backdrop-filter: blur(32px) saturate(170%);
-  -webkit-backdrop-filter: blur(32px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 28px 60px rgba(0, 0, 0, 0.62);
+  background: #080b12 !important;
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 28px 65px rgba(0, 0, 0, 0.94), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
   overflow: hidden;
 }
 
@@ -1686,6 +1692,97 @@
 @keyframes statusIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Premium Neon Launch & Download Progress HUD */
+.launchHudCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(12, 17, 28, 0.94), rgba(7, 10, 18, 0.96));
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  margin-bottom: 8px;
+  animation: hudFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes hudFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.launchHudTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.launchHudPulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8, 0 0 18px rgba(56, 189, 248, 0.8);
+  animation: dotPulse 1.2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.75; }
+  50% { transform: scale(1.35); opacity: 1; filter: brightness(1.25); }
+}
+
+.launchHudHumanText {
+  flex: 1;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.launchHudHumanPct {
+  font-size: 12px;
+  font-weight: 800;
+  color: #38bdf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.55);
+}
+
+.launchTrackThin {
+  position: relative;
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.launchTrackThinBar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8, #818cf8, #c084fc);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+  transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.launchTrackShimmer {
+  background: linear-gradient(90deg, #0ea5e9 0%, #38bdf8 30%, #ffffff 50%, #818cf8 70%, #0ea5e9 100%) !important;
+  background-size: 200% 100% !important;
+  animation: hudShimmer 1.4s infinite linear !important;
+}
+
+@keyframes hudShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .launchBtn,

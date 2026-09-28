@@ -816,6 +816,74 @@ function deleteVersion(versionId, customGameDir) {
   }
 }
 
+/**
+ * Creates a custom standalone instance/modpack with its own isolated directory
+ */
+async function createCustomInstance(opts, onProgress) {
+  const { name, mcVersion = '1.20.1', loader = 'fabric', loaderVersion, gameDir } = opts
+  const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
+  const versionsDir = path.join(rootDir, 'versions')
+  if (!fs.existsSync(versionsDir)) {
+    fs.mkdirSync(versionsDir, { recursive: true })
+  }
+
+  const cleanName = (name || 'Сборка').trim().replace(/[^a-zA-Z0-9_\-\.а-яА-ЯёЁ\s]/g, '').trim()
+  const folderSlug = cleanName.replace(/[\s\.]+/g, '_').substring(0, 30) || 'modpack'
+  let customVersionId = `${folderSlug}-${mcVersion}`
+  let targetDir = path.join(versionsDir, customVersionId)
+
+  let counter = 2
+  while (fs.existsSync(targetDir)) {
+    customVersionId = `${folderSlug}-${mcVersion}-${counter++}`
+    targetDir = path.join(versionsDir, customVersionId)
+  }
+
+  fs.mkdirSync(targetDir, { recursive: true })
+  fs.mkdirSync(path.join(targetDir, 'mods'), { recursive: true })
+  fs.mkdirSync(path.join(targetDir, 'shaderpacks'), { recursive: true })
+  fs.mkdirSync(path.join(targetDir, 'resourcepacks'), { recursive: true })
+
+  // Write modpack metadata
+  const meta = {
+    id: customVersionId,
+    title: cleanName || customVersionId,
+    mcVersion,
+    loader: loader.toLowerCase(),
+    isModpack: true,
+    isCustomInstance: true,
+    createdAt: Date.now(),
+  }
+  fs.writeFileSync(path.join(targetDir, '.vibelauncher_modpack.json'), JSON.stringify(meta, null, 2), 'utf8')
+
+  // Install loader and base version jar
+  const installResult = await installVersion(
+    {
+      type: loader.toLowerCase(),
+      mcVersion,
+      loaderVersion,
+      gameDir: rootDir,
+      customVersionId,
+    },
+    onProgress
+  )
+
+  if (!installResult?.ok) {
+    throw new Error(installResult?.error || 'Не удалось подготовить ядро сборки')
+  }
+
+  const createdInstance = {
+    id: customVersionId,
+    label: `${cleanName} (${mcVersion})`,
+    type: 'modpack',
+    baseVersion: mcVersion,
+    isModpack: true,
+    isLocal: true,
+    modpackMeta: meta,
+  }
+
+  return { ok: true, instance: createdInstance }
+}
+
 module.exports = {
   getDefaultGameDir,
   getLocalVersions,
@@ -824,6 +892,7 @@ module.exports = {
   getFabricVersions,
   getQuiltVersions,
   installVersion,
+  createCustomInstance,
   deleteVersion,
   detectBaseMinecraftVersion,
 }

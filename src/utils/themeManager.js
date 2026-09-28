@@ -8,14 +8,7 @@ import stealthBg from '../assets/themes/stealth.jpg'
 import minimalBlackBg from '../assets/themes/minimal_black.jpg'
 import minimalWhiteBg from '../assets/themes/minimal_white.jpg'
 import minimal3dBg from '../assets/themes/3d_minimal.jpg'
-
-// Online theme art is intentionally referenced, not bundled: it keeps the
-// installer light and lets a source update its image without an app release.
-// Sources are shown in the theme metadata for attribution.
-const ONLINE_THEME_ART = {
-  end: 'https://www.complementary.dev/assets/img/newScreenshots/both5_endCity.jpg',
-  fortress: 'https://wallpapers.com/images/high/minecraft-nether-fortress-ablaze-ceye2stzv4jffe3e.jpg',
-}
+import endCityBg from '../assets/themes/end_city.jpg'
 
 export const THEMES = [
   {
@@ -59,36 +52,19 @@ export const THEMES = [
   {
     id: 'end-city',
     name: 'End City',
-    description: 'Город Края среди фиолетовых островов; изображение из галереи Complementary Shaders',
-    accent: '#22c55e',
-    accentSec: '#10b981',
-    accentIce: '#4ade80',
-    glow: 'rgba(34, 197, 94, 0.45)',
-    bgTint: 'rgba(16, 185, 129, 0.12)',
-    borderGlow: 'rgba(34, 197, 94, 0.6)',
-    bgImage: ONLINE_THEME_ART.end,
-    isVideo: false,
-    category: 'art',
-    tag: 'Край • онлайн',
-    iconKey: 'Trees',
-    previewGradient: 'linear-gradient(135deg, #22c55e 0%, #10b981 50%, #059669 100%)',
-  },
-  {
-    id: 'nether-bastion',
-    name: 'Blazing Bastion',
-    description: 'Огненная крепость Незера — интернет-фон с обязательной атрибуцией источника',
+    description: 'Город Края и цитадель Энда среди парящих фиолетовых островов',
     accent: '#a855f7',
-    accentSec: '#8b5cf6',
+    accentSec: '#9333ea',
     accentIce: '#c084fc',
     glow: 'rgba(168, 85, 247, 0.45)',
-    bgTint: 'rgba(139, 92, 246, 0.12)',
+    bgTint: 'rgba(147, 51, 234, 0.12)',
     borderGlow: 'rgba(168, 85, 247, 0.6)',
-    bgImage: ONLINE_THEME_ART.fortress,
+    bgImage: endCityBg,
     isVideo: false,
     category: 'art',
-    tag: 'Незер • онлайн',
+    tag: 'Край • End World',
     iconKey: 'Sparkles',
-    previewGradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 50%, #ec4899 100%)',
+    previewGradient: 'linear-gradient(135deg, #a855f7 0%, #7e22ce 50%, #3b0764 100%)',
   },
   {
     id: 'cyber-sunset',
@@ -192,20 +168,78 @@ export const INTERFACE_THEMES = [
 export function applyInterfaceTheme(id = 'graphite') {
   const root = document.documentElement
   root.dataset.interfaceTheme = id
-  const values = id === 'oled'
-    ? { dark: '#000000', glass: 'rgba(0,0,0,.9)', card: 'rgba(7,7,8,.9)', text: '#fff', muted: 'rgba(203,213,225,.64)' }
-    : id === 'ash'
-      ? { dark: '#313338', glass: 'rgba(49,51,56,.97)', card: 'rgba(43,45,49,.98)', text: '#f2f3f5', muted: '#b5bac1' }
-      : id === 'frost'
-      ? { dark: '#eef2f6', glass: 'rgba(255,255,255,.9)', card: 'rgba(255,255,255,.84)', text: '#111827', muted: '#5f6b7a' }
-      : { dark: '#0a0c10', glass: 'rgba(17,20,26,.88)', card: 'rgba(15,18,24,.85)', text: '#fff', muted: 'rgba(148,163,184,.75)' }
+  root.setAttribute('data-interface-theme', id)
+
+  const presets = {
+    oled: {
+      dark: '#000000',
+      glass: 'rgba(0, 0, 0, 0.94)',
+      glassHover: 'rgba(12, 12, 14, 0.98)',
+      card: 'rgba(8, 8, 10, 0.92)',
+      text: '#ffffff',
+      textSec: 'rgba(241, 245, 249, 0.85)',
+      muted: 'rgba(203, 213, 225, 0.65)',
+      border: 'rgba(255, 255, 255, 0.1)',
+      borderHover: 'rgba(255, 255, 255, 0.22)',
+      liquidFill: 'linear-gradient(135deg, rgba(15, 15, 18, 0.78), rgba(0, 0, 0, 0.88))',
+    },
+    ash: {
+      dark: '#2b2d31',
+      glass: 'rgba(49, 51, 56, 0.92)',
+      glassHover: 'rgba(56, 58, 64, 0.96)',
+      card: 'rgba(43, 45, 49, 0.88)',
+      text: '#f2f3f5',
+      textSec: '#dbdee1',
+      muted: '#949ba4',
+      border: 'rgba(255, 255, 255, 0.08)',
+      borderHover: 'rgba(255, 255, 255, 0.18)',
+      liquidFill: 'linear-gradient(135deg, rgba(56, 58, 64, 0.72), rgba(43, 45, 49, 0.82))',
+    },
+    frost: {
+      dark: '#f1f5f9',
+      glass: 'rgba(255, 255, 255, 0.92)',
+      glassHover: 'rgba(255, 255, 255, 0.98)',
+      card: 'rgba(255, 255, 255, 0.88)',
+      text: '#0f172a',
+      textSec: '#334155',
+      muted: '#64748b',
+      border: 'rgba(15, 23, 42, 0.12)',
+      borderHover: 'rgba(15, 23, 42, 0.24)',
+      liquidFill: 'linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(241, 245, 249, 0.9))',
+    },
+    graphite: {
+      dark: '#0a0c10',
+      glass: 'rgba(17, 20, 26, 0.88)',
+      glassHover: 'rgba(26, 30, 39, 0.95)',
+      card: 'rgba(15, 18, 24, 0.85)',
+      text: '#ffffff',
+      textSec: 'rgba(241, 245, 249, 0.85)',
+      muted: 'rgba(148, 163, 184, 0.75)',
+      border: 'rgba(255, 255, 255, 0.08)',
+      borderHover: 'rgba(255, 255, 255, 0.18)',
+      liquidFill: 'linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04) 55%, rgba(190, 215, 255, 0.09))',
+    },
+  }
+
+  const values = presets[id] || presets.graphite
+
   root.style.setProperty('--bg-dark', values.dark)
   root.style.setProperty('--bg-glass', values.glass)
+  root.style.setProperty('--bg-glass-hover', values.glassHover)
   root.style.setProperty('--bg-glass-card', values.card)
   root.style.setProperty('--text-main', values.text)
+  root.style.setProperty('--text-secondary', values.textSec)
   root.style.setProperty('--text-muted', values.muted)
-  if (id === 'frost') root.setAttribute('data-theme', 'light')
-  else root.removeAttribute('data-theme')
+  root.style.setProperty('--glass-border', values.border)
+  root.style.setProperty('--glass-border-hover', values.borderHover)
+  root.style.setProperty('--liquid-fill', values.liquidFill)
+
+  if (id === 'frost') {
+    root.setAttribute('data-theme', 'light')
+  } else {
+    root.removeAttribute('data-theme')
+  }
+
   try { localStorage.setItem('vibelauncher_interface_theme', id) } catch (e) {}
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('vibe-interface-theme-changed', { detail: { id } }))

@@ -3,7 +3,7 @@ const path = require('path')
 const nbt = require('prismarine-nbt')
 
 const SERVER_IP = 'fuflandiya.ru'
-const SERVER_NAME = 'discord.gg/fAS92DwB8R'
+const SERVER_NAME = 'discord.gg/fM9M8fc45s'
 
 /**
  * Ensures server is present in the player's Minecraft multiplayer server list (servers.dat)

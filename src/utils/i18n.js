@@ -69,6 +69,7 @@ export const translations = {
     home_refresh_versions_tip: 'Обновить каталог версий (пересканировать папку versions)',
     home_search_versions: 'Поиск версии...',
     home_installed_versions: '📁 Установленные и свои версии',
+    home_installed_modpacks: 'Установленные сборки',
     home_popular_presets: '⚡ Популярные сборки',
     home_official_releases: '🌐 Официальные релизы',
     home_no_versions_found: 'Версии не найдены',
@@ -197,8 +198,11 @@ export const translations = {
     settings_title: 'Настройки лаунчера',
     settings_subtitle: 'Персонализация, память, оптимизация и пути',
     settings_general: 'Основные',
+    settings_minecraft: 'Minecraft',
     settings_tab_java: 'Java & Память',
     settings_tab_appearance: 'Интерфейс & FPS',
+    settings_tab_sounds: 'Звуки',
+    settings_tab_advanced: 'Дополнительно',
     settings_language: 'Язык интерфейса',
     settings_language_desc: 'Выберите язык отображения текста в лаунчере',
     settings_game_dir: 'Директория игры Minecraft',
@@ -206,6 +210,8 @@ export const translations = {
     settings_open_versions: 'Открыть versions',
     settings_browse: 'Обзор',
     settings_resolution: 'Разрешение экрана и окно игры',
+    settings_res_auto_detected: 'Автоматически под монитор',
+    settings_res_auto_detected_desc: 'Лаунчер автоматически сканирует разрешение вашего экрана и передает оптимальные параметры в Minecraft для запуска без искажений и с максимальной четкостью.',
     settings_window_size: 'Размер окна:',
     settings_fullscreen: 'Полноэкранный режим (Fullscreen)',
     settings_fullscreen_desc: 'Запускать Minecraft сразу на весь экран без оконных рамок Windows.',
@@ -566,6 +572,10 @@ export const translations = {
     theme_desc_midnight_nebula: 'Космическое измерение Энда, парящие кристаллы аметиста и звездная пыль',
     theme_tag_midnight_nebula: 'Измерение Энд',
 
+    theme_name_end_city: 'End City',
+    theme_desc_end_city: 'Город Края среди фиолетовых островов; изображение из галереи Complementary Shaders',
+    theme_tag_end_city: 'Край • арт',
+
     theme_name_cyber_sunset: 'Cyber Sunset',
     theme_desc_cyber_sunset: 'Вечерний неоновый мегаполис, золотые вершины гор и багровые лучи заката',
     theme_tag_cyber_sunset: 'Закатный мегаполис',
@@ -666,6 +676,7 @@ export const translations = {
     home_refresh_versions_tip: 'Refresh versions catalog (rescan versions directory)',
     home_search_versions: 'Search version...',
     home_installed_versions: '📁 Installed & Custom Versions',
+    home_installed_modpacks: 'Installed Modpacks',
     home_popular_presets: '⚡ Popular Presets',
     home_official_releases: '🌐 Official Releases',
     home_no_versions_found: 'No versions found',
@@ -794,8 +805,11 @@ export const translations = {
     settings_title: 'Launcher Settings',
     settings_subtitle: 'Customization, memory allocation, optimization, and paths',
     settings_general: 'General',
+    settings_minecraft: 'Minecraft',
     settings_tab_java: 'Java & Memory',
     settings_tab_appearance: 'Interface & FPS',
+    settings_tab_sounds: 'Audio',
+    settings_tab_advanced: 'Advanced',
     settings_language: 'Interface Language',
     settings_language_desc: 'Select the language displayed across the launcher',
     settings_game_dir: 'Minecraft Game Directory',
@@ -1163,6 +1177,10 @@ export const translations = {
     theme_desc_midnight_nebula: 'Cosmic void dimension, hovering amethyst clusters, and stardust',
     theme_tag_midnight_nebula: 'End Dimension',
 
+    theme_name_end_city: 'End City',
+    theme_desc_end_city: 'End City amidst violet islands; featured artwork from Complementary Shaders gallery',
+    theme_tag_end_city: 'The End • Art',
+
     theme_name_cyber_sunset: 'Cyber Sunset',
     theme_desc_cyber_sunset: 'Evening neon metropolis, golden mountain peaks, and crimson sunset rays',
     theme_tag_cyber_sunset: 'Sunset Metropolis',
@@ -1263,6 +1281,7 @@ export const translations = {
     home_refresh_versions_tip: 'Оновити каталог версій (пересканувати папку versions)',
     home_search_versions: 'Пошук версії...',
     home_installed_versions: '📁 Встановлені та власні версії',
+    home_installed_modpacks: 'Встановлені збірки',
     home_popular_presets: '⚡ Популярні збірки',
     home_official_releases: '🌐 Офіційні релізи',
     home_no_versions_found: 'Версії не знайдено',
@@ -1391,8 +1410,11 @@ export const translations = {
     settings_title: 'Налаштування лаунчера',
     settings_subtitle: 'Персоналізація, пам’ять, оптимізація та шляхи',
     settings_general: 'Основні',
+    settings_minecraft: 'Minecraft',
     settings_tab_java: 'Java & Пам’ять',
     settings_tab_appearance: 'Інтерфейс & FPS',
+    settings_tab_sounds: 'Звуки',
+    settings_tab_advanced: 'Додатково',
     settings_language: 'Мова інтерфейсу',
     settings_language_desc: 'Оберіть мову відображення тексту в лаунчері',
     settings_game_dir: 'Директорія гри Minecraft',
@@ -1760,6 +1782,10 @@ export const translations = {
     theme_desc_midnight_nebula: 'Космічний вимір Енду, ширяючі кристали аметисту та зоряний пил',
     theme_tag_midnight_nebula: 'Вимір Енд',
 
+    theme_name_end_city: 'End City',
+    theme_desc_end_city: 'Місто Краю серед фіолетових островів; пейзаж із галереї Complementary Shaders',
+    theme_tag_end_city: 'Край • арт',
+
     theme_name_cyber_sunset: 'Cyber Sunset',
     theme_desc_cyber_sunset: 'Вечірній неоновий мегаполіс, золоті вершини гір та багряні промені заходу',
     theme_tag_cyber_sunset: 'Західний мегаполіс',
@@ -1860,6 +1886,7 @@ export const translations = {
     home_refresh_versions_tip: 'Versionskatalog aktualisieren (Versionsordner neu einlesen)',
     home_search_versions: 'Version suchen...',
     home_installed_versions: '📁 Installierte & Eigene Versionen',
+    home_installed_modpacks: 'Installierte Modpacks',
     home_popular_presets: '⚡ Beliebte Voreinstellungen',
     home_official_releases: '🌐 Offizielle Veröffentlichungen',
     home_no_versions_found: 'Keine Versionen gefunden',
@@ -2357,6 +2384,10 @@ export const translations = {
     theme_desc_midnight_nebula: 'Kosmische End-Dimension, schwebende Amethystkristalle und Sternenstaub',
     theme_tag_midnight_nebula: 'End-Dimension',
 
+    theme_name_end_city: 'End City',
+    theme_desc_end_city: 'End-Stadt inmitten violetter Inseln; Kunstwerk aus der Complementary Shaders Galerie',
+    theme_tag_end_city: 'Das Ende • Kunst',
+
     theme_name_cyber_sunset: 'Cyber Sunset',
     theme_desc_cyber_sunset: 'Abendliche Neon-Metropole, goldene Berggipfel und karmesinrote Strahlen der Dämmerung',
     theme_tag_cyber_sunset: 'Dämmerungs-Metropole',
@@ -2396,12 +2427,16 @@ export const translations = {
 }
 
 export function getTranslation(lang, key, params = {}) {
+  if (!key) return ''
   const dictionary = translations[lang] || translations.ru || {}
   let text = dictionary[key]
   if (text === undefined) {
-    text = translations.ru?.[key] ?? key
+    text = translations.ru?.[key] ?? translations.en?.[key]
   }
-  if (typeof text !== 'string') return text ?? key
+  if (text === undefined) {
+    return key
+  }
+  if (typeof text !== 'string') return text
 
   if (params && typeof params === 'object') {
     Object.entries(params).forEach(([k, v]) => {

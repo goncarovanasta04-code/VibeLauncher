@@ -71,6 +71,7 @@ export default function Home({
   liquidSourceCanvasRef,
   liquidLensEnabled = false,
   liquidLensFps = 30,
+  showProfileControl = true,
 }) {
   const { t } = useLanguage()
   const [localVersions, setLocalVersions] = useState([])
@@ -280,13 +281,16 @@ export default function Home({
       }
 
       // Initial selection logic: saved > first local > first preset
+      let chosen = null
       if (saved) {
-        setSelected(saved)
+        chosen = saved
       } else if (locals.length > 0) {
-        setSelected(locals[0])
+        chosen = locals[0]
       } else {
-        setSelected(presets[0])
+        chosen = presets[0]
       }
+      setSelected(chosen)
+      if (setSelectedVersion) setSelectedVersion(chosen)
     } catch (e) {
       console.error('[Home] loadVersions error:', e)
     }
@@ -343,6 +347,7 @@ export default function Home({
   }
 
   const handleLaunch = async () => {
+    if (launching) return
     if (!profile) {
       setStatus(t('home_enter_nick_first'))
       onLoginRequest()
@@ -537,13 +542,13 @@ export default function Home({
         <div className={styles.cardIntro}>
           <div className={styles.readyState}>
             <span className={styles.readyDot} />
-            <span>VibeLauncher</span>
+            <span><span style={{ color: '#22c55e', textShadow: '0 0 10px rgba(34, 197, 94, 0.6)' }}>Vibe</span>Launcher</span>
           </div>
           <span className={styles.cardVersion}>v{packageInfo.version}</span>
         </div>
 
         {/* Row 1: Profile Selector [ 👤 ZIKYT (Лицензия) ⌵ ] */}
-        <div className={styles.fieldWrap} ref={profileMenuRef}>
+        {showProfileControl && <div className={styles.fieldWrap} ref={profileMenuRef}>
           {profile ? (
             <div className={styles.profileRowLayout}>
               <button
@@ -734,7 +739,7 @@ export default function Home({
               </button>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Row 2: Version Selector [ 📦 Fabric 1.16.5 ⌵ ] and Refresh Catalog button */}
         <div className={styles.fieldWrap} ref={dropdownRef}>
@@ -854,7 +859,7 @@ export default function Home({
                   <>
                     <div className={styles.groupHeader}>
                       <Sparkles size={11} className={styles.headerModpackIcon} />
-                      <span>{t('home_installed_modpacks') || 'Установленные сборки'}</span>
+                      <span>{t('home_installed_modpacks') && t('home_installed_modpacks') !== 'home_installed_modpacks' ? t('home_installed_modpacks') : 'Установленные сборки'}</span>
                       <span className={styles.groupCountBadge}>{filteredModpacks.length}</span>
                     </div>
                     {filteredModpacks.map((v, idx) => {
@@ -1170,64 +1175,6 @@ export default function Home({
               />
             )}
           </button>
-        </div>
-
-        {/* Row 5: 5 Toolbar Square Glass Buttons with Tooltips */}
-        <div className={styles.toolBar}>
-          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_mods')}>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={() => onNavigate('mods')}
-              aria-label={t('home_tooltip_mods')}
-            >
-              <Puzzle size={16} strokeWidth={1.8} />
-            </button>
-          </div>
-
-          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_versions')}>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={() => onNavigate('versions')}
-              aria-label={t('home_tooltip_versions')}
-            >
-              <Layers size={16} strokeWidth={1.8} />
-            </button>
-          </div>
-
-          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_folder')}>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={handleOpenFolder}
-              aria-label={t('home_tooltip_folder')}
-            >
-              <Folder size={16} strokeWidth={1.8} />
-            </button>
-          </div>
-
-          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_settings')}>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={() => onNavigate('settings')}
-              aria-label={t('home_tooltip_settings')}
-            >
-              <SlidersHorizontal size={16} strokeWidth={1.8} />
-            </button>
-          </div>
-
-          <div className={styles.toolBtnWrap} data-tooltip={t('home_tooltip_about')}>
-            <button
-              type="button"
-              className={styles.toolBtn}
-              onClick={() => setShowInfoModal(true)}
-              aria-label={t('home_tooltip_about')}
-            >
-              <Info size={16} strokeWidth={1.8} />
-            </button>
-          </div>
         </div>
       </div>
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X,
+  Plus,
+  AlertTriangle,
   Search,
   Download,
   Check,
@@ -153,7 +155,26 @@ function RenderMarkdown({ content }) {
   return <div className={styles.markdownBody}>{elements}</div>
 }
 
-export default function ModsModal({ activeVersion, localVersions = [], onClose, onSelectVersion }) {
+const ALL_DEFAULT_MC_VERSIONS = [
+  '26.3', '26.2', '26.1.2', '26.1.1', '26.1',
+  '1.21.4', '1.21.3', '1.21.2', '1.21.1', '1.21',
+  '1.20.6', '1.20.5', '1.20.4', '1.20.3', '1.20.2', '1.20.1', '1.20',
+  '1.19.4', '1.19.3', '1.19.2', '1.19.1', '1.19',
+  '1.18.2', '1.18.1', '1.18',
+  '1.17.1', '1.17',
+  '1.16.5', '1.16.4', '1.16.3', '1.16.2', '1.16.1', '1.16',
+  '1.15.2', '1.15.1', '1.15',
+  '1.14.4', '1.14.3', '1.14.2', '1.14.1', '1.14',
+  '1.13.2', '1.13.1', '1.13',
+  '1.12.2', '1.12.1', '1.12',
+  '1.11.2', '1.11',
+  '1.10.2', '1.10',
+  '1.9.4', '1.9',
+  '1.8.9', '1.8.8', '1.8',
+  '1.7.10',
+]
+
+export default function ModsModal({ activeVersion, localVersions = [], onClose, onSelectVersion, embedded = false }) {
   const { t } = useLanguage()
   const [tab, setTab] = useState('mod')
   const [searchQuery, setSearchQuery] = useState('')
@@ -162,11 +183,12 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   )
   const [targetVersionId, setTargetVersionId] = useState(activeVersion?.id || '1.16.5')
   const [modpackMcVersion, setModpackMcVersion] = useState(activeVersion?.baseVersion || activeVersion?.modpackMeta?.mcVersion || '1.20.1')
-  const [modpackVersions, setModpackVersions] = useState([])
+  const [modpackVersions, setModpackVersions] = useState(ALL_DEFAULT_MC_VERSIONS)
 
-  // Search Results
   const [hits, setHits] = useState([])
+  const [totalHits, setTotalHits] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [searchError, setSearchError] = useState('')
 
   // Project Details View State
@@ -189,14 +211,83 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   const searchTimeoutRef = useRef(null)
   const searchRequestRef = useRef(0)
 
+  // Custom instance creation states
+  const [showCreateInstanceModal, setShowCreateInstanceModal] = useState(false)
+  const [newInstanceName, setNewInstanceName] = useState('')
+  const [newInstanceMcVersion, setNewInstanceMcVersion] = useState('1.20.1')
+  const [newInstanceLoader, setNewInstanceLoader] = useState('fabric')
+  const [creatingInstance, setCreatingInstance] = useState(false)
+  const [createInstanceError, setCreateInstanceError] = useState('')
+
+  // Filter out experimental snapshots, and support both 26.x and 1.x Java releases
+  const isRealJavaVersion = (id) => {
+    if (!id || typeof id !== 'string') return false
+    if (/snapshot|pre|rc|beta|alpha|infdev|c0\./i.test(id)) return false
+    // 26.x releases (e.g. 26.3, 26.2, 26.1.2, 26.1.1, 26.1)
+    if (/^2[6-9](\.\d+)*$/.test(id)) return true
+    // 1.x releases (e.g. 1.21.11 down to 1.7.10)
+    const match = id.match(/^1\.(\d+)(?:\.(\d+))?$/)
+    if (!match) return false
+    const minor = parseInt(match[1], 10)
+    return minor >= 7
+  }
+
+  // Semver comparator for sorting Minecraft versions descending (e.g. 26.3 > 1.21.4 > 1.20.1 > 1.16.5 > 1.7.10)
+  const semverCompareDesc = (a, b) => {
+    const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0)
+    const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const na = pa[i] || 0
+      const nb = pb[i] || 0
+      if (na !== nb) return nb - na
+    }
+    return 0
+  }
+
   useEffect(() => {
-    if (tab !== 'modpack' || modpackVersions.length) return
-    window.vibe?.getVersionManifest?.().then((res) => {
-      if (!res?.ok) return
-      const ids = (res.versions || []).map((entry) => entry.id).filter((id) => /^1\.\d+(?:\.\d+)?$/.test(id))
-      setModpackVersions([...new Set(ids)])
-    }).catch(() => {})
-  }, [tab, modpackVersions.length])
+    const fetchManifest = async () => {
+      let rawVersions = []
+      try {
+        const res = await window.vibe?.getVersionManifest?.()
+        if (res?.ok && Array.isArray(res.versions) && res.versions.length > 0) {
+          rawVersions = res.versions
+        }
+      } catch (e) {}
+
+      // Fallback to direct Mojang manifest fetch if Electron mock or local storage returns empty
+      if (rawVersions.length === 0 && typeof fetch !== 'undefined') {
+        try {
+          const direct = await fetch('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json')
+          if (direct.ok) {
+            const data = await direct.json()
+            if (Array.isArray(data.versions)) {
+              rawVersions = data.versions
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (rawVersions.length > 0) {
+        const ids = rawVersions
+          .filter((entry) => entry.type === 'release' && isRealJavaVersion(entry.id))
+          .map((entry) => entry.id)
+        const combined = [...new Set([...ids, ...ALL_DEFAULT_MC_VERSIONS])]
+        const sorted = combined.sort(semverCompareDesc)
+        if (sorted.length > 0) {
+          setModpackVersions(sorted)
+          const currentMc = getMcVersionOnly(targetVersionId)
+          if (currentMc && sorted.includes(currentMc)) {
+            setModpackMcVersion(currentMc)
+            setNewInstanceMcVersion(currentMc)
+          } else {
+            setModpackMcVersion(sorted[0])
+            setNewInstanceMcVersion(sorted[0])
+          }
+        }
+      }
+    }
+    fetchManifest()
+  }, [])
 
   // Listen to live installation progress from Electron
   useEffect(() => {
@@ -241,9 +332,9 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
       const candidate = parts[parts.length - 1]
       return candidate.replace(/_/g, '.')
     }
-    const match = id.replace(/_/g, '.').match(/(1\.\d+(?:\.\d+)?)/)
+    const match = id.replace(/_/g, '.').match(/((?:1\.\d+|2[6-9])(?:\.\d+)*)/)
     if (match) return match[1]
-    return /^1\.\d+/.test(id) ? id : ''
+    return /^((?:1\.\d+|2[6-9]))/.test(id) ? id : ''
   }
 
   const mcVersion = getMcVersionOnly(targetVersionId)
@@ -252,12 +343,16 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   const lockedLoader = (targetVersion?.modpackMeta?.loader || targetVersion?.type || '').toLowerCase()
   const isLoaderLocked = ['fabric', 'forge', 'neoforge', 'quilt'].includes(lockedLoader)
 
-  // Auto-sync loader when target version or modpack changes
+  // Auto-sync loader and modpack MC version when target version changes
   useEffect(() => {
     const targetObj = localVersions.find((v) => v.id === targetVersionId) || (activeVersion?.id === targetVersionId ? activeVersion : null)
     const ldr = targetObj?.modpackMeta?.loader || targetObj?.type
     if (ldr && ['fabric', 'forge', 'neoforge', 'quilt'].includes(ldr.toLowerCase())) {
       setSelectedLoader(ldr.toLowerCase())
+    }
+    const currentMc = getMcVersionOnly(targetVersionId)
+    if (currentMc) {
+      setModpackMcVersion(currentMc)
     }
   }, [targetVersionId, localVersions, activeVersion])
 
@@ -307,40 +402,101 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
     }, 400)
   }
 
-  const performSearch = async (query = searchQuery) => {
+  const handleCreateInstance = async (e) => {
+    e?.preventDefault?.()
+    if (!newInstanceName.trim()) {
+      setCreateInstanceError('Введите название сборки')
+      return
+    }
+    setCreatingInstance(true)
+    setCreateInstanceError('')
+
+    try {
+      const res = await window.vibe?.createCustomInstance?.({
+        name: newInstanceName.trim(),
+        mcVersion: newInstanceMcVersion,
+        loader: newInstanceLoader,
+      })
+
+      if (res?.ok && res.instance) {
+        playUiSound('success')
+        setShowCreateInstanceModal(false)
+        setNewInstanceName('')
+
+        // Select newly created instance in launcher
+        if (onSelectVersion) {
+          onSelectVersion(res.instance)
+        }
+
+        // Set target in catalog
+        setTargetVersionId(res.instance.id)
+
+        // Reload installed mods for this instance
+        await loadInstalled()
+      } else {
+        throw new Error(res?.error || 'Не удалось создать сборку')
+      }
+    } catch (err) {
+      setCreateInstanceError(err.message || 'Ошибка создания сборки')
+      playUiSound('error')
+    } finally {
+      setCreatingInstance(false)
+    }
+  }
+
+  const performSearch = async (query = searchQuery, isLoadMore = false) => {
     const requestId = ++searchRequestRef.current
-    setLoading(true)
+    if (isLoadMore) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+      setHits([])
+    }
     setSearchError('')
+    const currentOffset = isLoadMore ? hits.length : 0
+    const limit = 24
+
     try {
       const res = await window.vibe?.searchMods({
         query: query,
         type: tab,
         mcVersion: catalogMcVersion,
         loader: tab === 'mod' || tab === 'modpack' ? (selectedLoader === 'all' ? undefined : selectedLoader) : undefined,
-        limit: 30,
+        limit,
+        offset: currentOffset,
       })
 
       if (requestId !== searchRequestRef.current) return
       if (res?.ok) {
-        setHits(res.hits || [])
+        if (isLoadMore) {
+          setHits((prev) => [...prev, ...(res.hits || [])])
+        } else {
+          setHits(res.hits || [])
+        }
+        setTotalHits(Number(res.total) || 0)
       } else {
-        setSearchError(res?.error || t('mods_err_load_failed'))
-        setHits([])
+        if (!isLoadMore) {
+          setSearchError(res?.error || t('mods_err_load_failed'))
+          setHits([])
+          setTotalHits(0)
+        }
       }
     } catch (err) {
       if (requestId !== searchRequestRef.current) return
-      setSearchError(t('mods_err_search_prefix') + ': ' + err.message)
+      if (!isLoadMore) {
+        setSearchError(t('mods_err_search_prefix') + ': ' + err.message)
+      }
     } finally {
-      if (requestId === searchRequestRef.current) setLoading(false)
+      if (requestId === searchRequestRef.current) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
   }
 
   const handleLoaderChange = (loader) => {
-    if (isLoaderLocked && loader !== lockedLoader) {
-      setSearchError(`Для выбранной версии доступен только ${lockedLoader}. Выберите другую игровую версию, чтобы сменить загрузчик.`)
-      return
-    }
     setSelectedLoader(loader)
+    setSearchError('')
   }
 
   const loadInstalled = async () => {
@@ -649,10 +805,11 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   }
 
   const formatDownloads = (num) => {
-    if (!num && num !== 0) return '0'
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-    if (num >= 1000) return `${(num / 1000).toFixed(0)}k`
-    return String(num)
+    if (num === null || num === undefined || isNaN(Number(num))) return '0'
+    const n = Number(num)
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+    if (n >= 1000) return `${(n / 1000).toFixed(0)}k`
+    return String(n)
   }
 
   const formatSize = (bytes) => {
@@ -680,8 +837,8 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
   const activeHitStatus = activeHit ? installStatus[activeHit.id] : null
 
   return (
-    <div className={styles.overlay} onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose() }}>
-      <div className={styles.modal}>
+    <div className={`${styles.overlay} ${embedded ? styles.embedded : ''}`} onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose() }}>
+      <div className={`${styles.modal} ${embedded ? styles.embeddedModal : ''}`}>
         {/* If a project is selected, show rich Details View */}
         {selectedProject ? (
           <div className={styles.detailsView}>
@@ -988,29 +1145,43 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                   <div className={styles.versionSelectorWrap}>
                     <span className={styles.versionLabel}>Версия Minecraft</span>
                     <select className={styles.versionSelect} value={modpackMcVersion} onChange={(e) => setModpackMcVersion(e.target.value)}>
-                      {(modpackVersions.length ? modpackVersions : ['1.21.1', '1.20.6', '1.20.4', '1.20.1', '1.19.4', '1.18.2', '1.16.5', '1.12.2']).map((version) => <option key={version} value={version}>{version}</option>)}
+                      {(modpackVersions.length ? modpackVersions : ['1.21.4', '1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2', '1.16.5', '1.12.2']).map((version) => <option key={version} value={version}>{version}</option>)}
                     </select>
                   </div>
-                ) : localVersions.length > 1 && (
-                  <div className={styles.versionSelectorWrap}>
-                    <span className={styles.versionLabel}>{t('mods_version_folder')}</span>
-                    <select
-                      className={styles.versionSelect}
-                      value={targetVersionId}
-                      onChange={(e) => setTargetVersionId(e.target.value)}
+                ) : (
+                  <div className={styles.catalogInstanceControls}>
+                    <button
+                      type="button"
+                      className={styles.createInstanceTopBtn}
+                      onClick={() => {
+                        const cur = catalogMcVersion || '1.20.1'
+                        setNewInstanceName(`Сборка ${cur}`)
+                        setNewInstanceMcVersion(cur)
+                        setCreateInstanceError('')
+                        setShowCreateInstanceModal(true)
+                      }}
+                      title="Создать новую изолированную сборку со своей папкой модов"
                     >
-                      {localVersions.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.label || v.id}
-                        </option>
-                      ))}
-                    </select>
+                      <Plus size={15} />
+                      <span>Создать сборку</span>
+                    </button>
+
+                    <div className={styles.versionSelectorWrap}>
+                      <span className={styles.versionLabel}>{t('mods_version_folder')}</span>
+                      <select
+                        className={styles.versionSelect}
+                        value={targetVersionId}
+                        onChange={(e) => setTargetVersionId(e.target.value)}
+                      >
+                        {localVersions.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {(v.isModpack || v.type === 'modpack') ? `📦 ${v.label || v.id}` : (v.label || v.id)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 )}
-
-                <button type="button" className={styles.closeBtn} onClick={onClose} title={t('close')}>
-                  <X size={16} />
-                </button>
               </div>
             </div>
 
@@ -1247,7 +1418,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                   <div className={styles.centerState}>
                     <Puzzle size={40} className={styles.emptyIcon} />
                     <span className={styles.stateText}>
-                      {t('mods_nothing_found', { version: mcVersion })}
+                      {t('mods_nothing_found', { version: catalogMcVersion || mcVersion })}
                     </span>
                     <span className={styles.emptyHint}>
                       {t('mods_nothing_found_hint')}
@@ -1371,6 +1542,27 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                         </div>
                       )
                     })}
+                    {hits.length < totalHits && !loading && (
+                      <div className={styles.loadMoreWrap}>
+                        <button
+                          type="button"
+                          className={styles.loadMoreBtn}
+                          onClick={() => performSearch(searchQuery, true)}
+                          disabled={loadingMore}
+                        >
+                          {loadingMore ? (
+                            <>
+                              <Loader2 size={14} className={styles.spin} />
+                              <span>{t('mods_loading_more') || 'Загрузка...'}</span>
+                            </>
+                          ) : (
+                            <span>
+                              {t('mods_load_more') || 'Загрузить ещё'} ({hits.length} из {totalHits})
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               ) : (
@@ -1473,6 +1665,120 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
           </div>
         )}
       </div>
+      {/* Create Custom Instance Modal */}
+      {showCreateInstanceModal && (
+        <div className={styles.createModalOverlay} onClick={(e) => { if (e.target === e.currentTarget && !creatingInstance) setShowCreateInstanceModal(false) }}>
+          <div className={styles.createModal}>
+            <div className={styles.createModalHeader}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className={styles.createModalIconWrap}>
+                  <Package size={18} />
+                </div>
+                <div>
+                  <h3 className={styles.createModalTitle}>Создать новую сборку</h3>
+                  <p className={styles.createModalDesc}>Изолированная версия со своей личной папкой модов</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.closeBtn}
+                onClick={() => setShowCreateInstanceModal(false)}
+                disabled={creatingInstance}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInstance} className={styles.createModalBody}>
+              {createInstanceError && (
+                <div className={styles.createModalError}>
+                  <AlertTriangle size={15} />
+                  <span>{createInstanceError}</span>
+                </div>
+              )}
+
+              <div className={styles.createFieldGroup}>
+                <label className={styles.createLabel}>Название сборки</label>
+                <input
+                  type="text"
+                  className={styles.createInput}
+                  placeholder="Например: Моя выживалка 1.20.1"
+                  value={newInstanceName}
+                  onChange={(e) => setNewInstanceName(e.target.value)}
+                  disabled={creatingInstance}
+                  autoFocus
+                />
+              </div>
+
+              <div className={styles.createFieldRow}>
+                <div className={styles.createFieldGroup} style={{ flex: 1 }}>
+                  <label className={styles.createLabel}>Версия Minecraft</label>
+                  <select
+                    className={styles.createSelect}
+                    value={newInstanceMcVersion}
+                    onChange={(e) => {
+                      setNewInstanceMcVersion(e.target.value)
+                      if (!newInstanceName || newInstanceName.startsWith('Сборка ')) {
+                        setNewInstanceName(`Сборка ${e.target.value}`)
+                      }
+                    }}
+                    disabled={creatingInstance}
+                  >
+                    {(modpackVersions.length > 0 ? modpackVersions : ['26.3', '26.2', '26.1', '1.21.4', '1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2', '1.16.5', '1.12.2', '1.7.10']).map((v) => (
+                      <option key={v} value={v}>Minecraft {v}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.createFieldGroup} style={{ flex: 1 }}>
+                  <label className={styles.createLabel}>Загрузчик модов</label>
+                  <div className={styles.loaderSegmented}>
+                    {['fabric', 'forge', 'neoforge', 'quilt'].map((ldr) => (
+                      <button
+                        key={ldr}
+                        type="button"
+                        className={`${styles.loaderSegmentBtn} ${newInstanceLoader === ldr ? styles.loaderSegmentBtnActive : ''}`}
+                        onClick={() => setNewInstanceLoader(ldr)}
+                        disabled={creatingInstance}
+                      >
+                        {ldr === 'fabric' ? 'Fabric' : ldr === 'forge' ? 'Forge' : ldr === 'neoforge' ? 'NeoForge' : 'Quilt'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.createModalFooter}>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={() => setShowCreateInstanceModal(false)}
+                  disabled={creatingInstance}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className={styles.submitCreateBtn}
+                  disabled={creatingInstance || !newInstanceName.trim()}
+                >
+                  {creatingInstance ? (
+                    <>
+                      <Loader2 size={15} className={styles.spin} />
+                      <span>Создание сборки...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} />
+                      <span>Создать сборку</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

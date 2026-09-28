@@ -7,9 +7,9 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
   const canvasRef = useRef(null)
 
   useEffect(() => {
-    // The 3D scene mounts independently from this component. Keep the lens alive
-    // while it is being created instead of falling back permanently if the scene
-    // ref is populated a frame later.
+    // Only run WebGL shader when sourceCanvasRef is explicitly provided (3D scene).
+    // For static wallpapers and videos, native CSS backdrop-filter refracts the live
+    // moving background smoothly at 60 FPS without freezing it behind an opaque canvas.
     if (disabled || !canvasRef.current || !cardRef?.current || !sourceCanvasRef) return
 
     const canvas = canvasRef.current
@@ -33,6 +33,7 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
       uniform vec2 u_cardOffset;
       uniform vec2 u_viewSize;
       uniform float u_radius;
+      uniform vec4 u_sourceCrop;
 
       float roundedBox(vec2 p, vec2 halfSize, float radius) {
         vec2 q = abs(p) - halfSize + radius;
@@ -62,13 +63,16 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
         vec2 opticalAxis = normalize(unit + vec2(0.0001));
         float radial = clamp(1.0 - dot(unit, unit), 0.0, 1.0);
         float bulge = pow(radial, 0.62);
-        vec2 lensOffset = opticalAxis * bulge * 7.0 / u_viewSize;
-        lensOffset += normal * edge * 6.0 / u_viewSize;
+        vec2 lensOffset = opticalAxis * bulge * 10.0 / u_viewSize;
+        lensOffset += normal * edge * 8.0 / u_viewSize;
 
         // Keep dispersion nearly imperceptible: the material is neutral glass,
         // not a blue cyber-panel.
         vec2 chroma = normal * edge * 0.14 / u_viewSize;
         vec2 refractedUv = clamp(sourceUv - lensOffset, 0.0, 1.0);
+        // Match CSS object-fit: cover, so the lens samples exactly the same
+        // portion of a wallpaper/video that is visible behind the card.
+        refractedUv = u_sourceCrop.xy + refractedUv * u_sourceCrop.zw;
         vec3 refracted;
         refracted.r = texture2D(u_source, clamp(refractedUv + chroma, 0.0, 1.0)).r;
         refracted.g = texture2D(u_source, refractedUv).g;
@@ -79,8 +83,8 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
         vec3 rimGlow = vec3(0.9, 0.92, 0.93) * (edge * 0.12 + fresnel * 0.022);
         // Tinted clear glass keeps the refraction visible without letting a
         // bright object behind it overpower the launcher controls.
-        vec3 color = refracted * (0.38 + edge * 0.08) + rimGlow + vec3(1.0) * topSheen * 0.055;
-        gl_FragColor = vec4(color, 1.0);
+        vec3 color = refracted * (0.68 + edge * 0.08) + rimGlow + vec3(1.0) * topSheen * 0.075;
+        gl_FragColor = vec4(color, 0.96);
       }
     `
 
@@ -127,6 +131,7 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
       cardOffset: gl.getUniformLocation(program, 'u_cardOffset'),
       viewSize: gl.getUniformLocation(program, 'u_viewSize'),
       radius: gl.getUniformLocation(program, 'u_radius'),
+      sourceCrop: gl.getUniformLocation(program, 'u_sourceCrop'),
     }
 
     let frameId = null
@@ -140,9 +145,14 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
       if (document.hidden || now - lastFrame < frameInterval) return
       lastFrame = now
 
-      const source = sourceCanvasRef.current
-      const card = cardRef.current
-      if (!source || !card || source.width === 0 || source.height === 0) return
+      const source = sourceCanvasRef?.current
+      const card = cardRef?.current
+      if (!source || !card) return
+
+      const sourceWidth = source.videoWidth || source.naturalWidth || source.width || 0
+      const sourceHeight = source.videoHeight || source.naturalHeight || source.height || 0
+      if (sourceWidth === 0 || sourceHeight === 0) return
+
       const rect = card.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
       const width = Math.max(1, Math.round(rect.width * dpr))
@@ -157,6 +167,7 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
         gl.bindTexture(gl.TEXTURE_2D, texture)
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
       } catch (error) {
+        // If external image fails CORS or is not ready, graceful fallback
         return
       }
 
@@ -166,6 +177,20 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
       gl.uniform2f(uniforms.cardOffset, rect.left, rect.top)
       gl.uniform2f(uniforms.viewSize, window.innerWidth, window.innerHeight)
       gl.uniform1f(uniforms.radius, parseFloat(window.getComputedStyle(card).borderRadius) || 26)
+      const sourceAspect = sourceWidth / sourceHeight
+      const viewAspect = window.innerWidth / window.innerHeight
+      let cropX = 0
+      let cropY = 0
+      let cropWidth = 1
+      let cropHeight = 1
+      if (sourceAspect > viewAspect) {
+        cropWidth = viewAspect / sourceAspect
+        cropX = (1 - cropWidth) / 2
+      } else if (sourceAspect < viewAspect) {
+        cropHeight = sourceAspect / viewAspect
+        cropY = (1 - cropHeight) / 2
+      }
+      gl.uniform4f(uniforms.sourceCrop, cropX, cropY, cropWidth, cropHeight)
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
@@ -183,6 +208,6 @@ export default function LiquidGlassShader({ cardRef, sourceCanvasRef, disabled =
     }
   }, [cardRef, disabled, sourceCanvasRef, maxFps])
 
-  if (disabled) return null
+  if (disabled || !sourceCanvasRef) return null
   return <canvas ref={canvasRef} className="liquid-lens" aria-hidden="true" />
 }

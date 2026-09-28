@@ -266,55 +266,91 @@ input::placeholder {
 
 /* Dialogs and manager windows share the same optical shell. */
 html.liquid-glass-enabled :where([class*="_overlay_"], [class*="_modalOverlay_"], [class*="_infoOverlay_"]) {
-  background: rgba(2, 8, 17, 0.48) !important;
-  backdrop-filter: blur(18px) saturate(112%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(112%) !important;
+  background: rgba(2, 8, 17, 0.52) !important;
+  backdrop-filter: blur(18px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(120%) !important;
 }
 
-html.liquid-glass-enabled :where([class*="_modal_"], [class*="_versionsModal_"], [class*="_infoModal_"], [class*="_panel_"]) {
-  background: var(--liquid-fill) !important;
-  backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
-  border: 1px solid var(--liquid-rim) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    inset 1px 0 0 rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(5, 11, 21, 0.26),
-    var(--liquid-shadow) !important;
+/* 1. Sidebar */
+html.liquid-glass-enabled :where([class*="_sidebar_"]) {
+  background: rgba(8, 12, 20, 0.65) !important;
+  backdrop-filter: blur(28px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(145%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.09) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35) !important;
 }
 
-html.liquid-glass-enabled :where([class*="_modal_"])::before,
-html.liquid-glass-enabled :where([class*="_versionsModal_"])::before,
-html.liquid-glass-enabled :where([class*="_infoModal_"])::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(ellipse 75% 38% at 18% -6%, rgba(255,255,255,.34), transparent 62%);
-  opacity: .72;
+/* 2. Embedded Page Workspaces (Catalog, Settings, Versions) */
+html.liquid-glass-enabled :where([class*="_pageWorkspace_"], [class*="_embeddedModal_"], [class*="_versionsWorkspace_"], [class*="_versionsContainer_"]) {
+  background: rgba(9, 13, 22, 0.68) !important;
+  backdrop-filter: blur(32px) saturate(155%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(155%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 18px 50px rgba(0, 0, 0, 0.45) !important;
 }
 
-html.liquid-glass-enabled :where([class*="_modal_"]) > *,
-html.liquid-glass-enabled :where([class*="_versionsModal_"]) > *,
-html.liquid-glass-enabled :where([class*="_infoModal_"]) > * {
-  position: relative;
-  z-index: 1;
+/* 3. Panels, Headers, Filter Bars, Top Control Bars */
+html.liquid-glass-enabled :where(
+  [class*="_panel_"],
+  [class*="_pageHeading_"],
+  [class*="_topControlBar_"],
+  [class*="_searchFilterRow_"],
+  [class*="_filterBar_"],
+  [class*="_subHeader_"],
+  [class*="_detailsHeader_"],
+  [class*="_settingsNav_"]
+) {
+  background: rgba(14, 19, 32, 0.6) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 8px 24px rgba(0, 0, 0, 0.3) !important;
 }
 
+/* 4. Mod Cards, Category Cards, Setting Groups & Grid Items */
+html.liquid-glass-enabled :where(
+  [class*="_modCard_"],
+  [class*="_categoryCard_"],
+  [class*="_settingGroup_"],
+  [class*="_settingRow_"],
+  [class*="_card_"]:not([class*="_centerCard_"]):not([class*="_versionItem_"]):not([class*="_accountItem_"]),
+  [class*="_itemCard_"]
+) {
+  background: rgba(14, 20, 34, 0.55) !important;
+  backdrop-filter: blur(18px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 18px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+html.liquid-glass-enabled :where(
+  [class*="_modCard_"],
+  [class*="_categoryCard_"]
+):hover {
+  background: rgba(22, 32, 54, 0.72) !important;
+  border-color: rgba(56, 189, 248, 0.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 12px 30px rgba(0, 0, 0, 0.5) !important;
+  transform: translateY(-2px);
+}
+
+/* 5. Modals & Dialogs */
+html.liquid-glass-enabled :where([class*="_modal_"]:not([class*="_embeddedModal_"])) {
+  background: rgba(10, 14, 22, 0.92) !important;
+  backdrop-filter: blur(36px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 28px 75px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* 6. Dropdown Menus */
 html.liquid-glass-enabled :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
-  background: var(--liquid-fill) !important;
-  backdrop-filter: blur(26px) saturate(150%) contrast(108%) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(150%) contrast(108%) !important;
-  border-color: rgba(255,255,255,.32) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 20px 46px rgba(0,0,0,.34) !important;
-}
-
-html.liquid-glass-enabled :where([class*="_closeBtn_"], [class*="_modalCloseBtn_"], [class*="_infoClose_"]) {
-  border-radius: 999px !important;
-  background: rgba(255,255,255,.12) !important;
-  border: 1px solid rgba(255,255,255,.23) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.3) !important;
+  background: #090c13 !important;
+  backdrop-filter: blur(32px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 28px 70px rgba(0, 0, 0, 0.95) !important;
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -322,37 +358,261 @@ html.liquid-glass-enabled :where([class*="_closeBtn_"], [class*="_modalCloseBtn_
     background: rgba(18, 28, 43, .96) !important;
   }
 }
-
-/* The beta lens is an opt-in material that is applied consistently to every
-   launcher surface — cards, controls, dropdowns and dialogs. */
-html.liquid-glass-enabled :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
-  background: var(--liquid-fill) !important;
-  backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(145%) contrast(106%) !important;
-  border-color: rgba(255,255,255,.26) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.42), inset 0 -1px 0 rgba(5,11,21,.2), 0 16px 40px rgba(0,0,0,.26) !important;
-}
 html.liquid-glass-enabled :where(button, input, select) {
   transition-duration: 150ms;
 }
 
-/* Opaque interface presets deliberately supersede the glass material. */
-html[data-interface-theme="oled"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
-  background: #060607 !important;
-  border-color: rgba(255,255,255,.1) !important;
+/* The lens is available on every wallpaper, not only on the WebGL 3D scene.
+   Static artwork and video are refracted by the compositor through backdrop
+   filtering; the shader is reserved solely for sampling the 3D canvas. */
+html.liquid-glass-enabled :where(
+  [class*="_centerCard_"],
+  [class*="_selectBtn_"],
+  [class*="_checkboxLabel_"],
+  [class*="_toolbarBtn_"],
+  [class*="_accountButton_"],
+  [class*="_accountMenu_"],
+  [class*="_navItem_"],
+  [class*="_folderButton_"],
+  [class*="_searchWrap_"],
+  [class*="_loaderFilters_"],
+  [class*="_installedFilters_"],
+  [class*="_navBar_"],
+  [class*="_versionSelectorWrap_"]
+) {
+  background: linear-gradient(135deg, rgba(255,255,255,.14), rgba(255,255,255,.045) 52%, rgba(193,216,255,.09)) !important;
+  backdrop-filter: blur(22px) saturate(145%) contrast(108%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(145%) contrast(108%) !important;
+  border-color: rgba(255,255,255,.23) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(5,11,21,.18), 0 12px 30px rgba(0,0,0,.24) !important;
 }
 
-html[data-interface-theme="ash"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
+html.liquid-glass-enabled :where([class*="_centerCard_"], [class*="_accountButton_"], [class*="_navItemActive_"]) {
+  border-color: rgba(255,255,255,.34) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(5,11,21,.2), 0 18px 42px rgba(0,0,0,.3) !important;
+}
+
+/* ==========================================================================
+   GLOBAL INTERFACE THEMES (OLED, Ash, Frost) - With and without Liquid Glass
+   ========================================================================== */
+
+/* OLED Theme: True black depth, zero blue wash, maximum contrast */
+html[data-interface-theme="oled"] :where([class*="_sidebar_"]) {
+  background: rgba(0, 0, 0, 0.95) !important;
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-interface-theme="oled"] :where([class*="_pageWorkspace_"], [class*="_embeddedModal_"], [class*="_versionsWorkspace_"], [class*="_versionsContainer_"]) {
+  background: rgba(4, 4, 6, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html[data-interface-theme="oled"] :where([class*="_modal_"]:not([class*="_embeddedModal_"])) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-interface-theme="oled"] :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-interface-theme="oled"] :where(
+  [class*="_panel_"],
+  [class*="_pageHeading_"],
+  [class*="_topControlBar_"],
+  [class*="_searchFilterRow_"],
+  [class*="_filterBar_"],
+  [class*="_subHeader_"],
+  [class*="_detailsHeader_"],
+  [class*="_settingsNav_"]
+) {
+  background: rgba(8, 8, 10, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-interface-theme="oled"] :where(
+  [class*="_modCard_"],
+  [class*="_categoryCard_"],
+  [class*="_settingGroup_"],
+  [class*="_settingRow_"],
+  [class*="_card_"]:not([class*="_centerCard_"]):not([class*="_versionItem_"]):not([class*="_accountItem_"]),
+  [class*="_itemCard_"]
+) {
+  background: rgba(10, 10, 12, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-interface-theme="oled"] :where([class*="_centerCard_"]) {
+  background: rgba(3, 3, 5, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Ash Theme: Neutral Discord-style dark graphite */
+html[data-interface-theme="ash"] :where([class*="_sidebar_"]) {
+  background: rgba(43, 45, 49, 0.92) !important;
+  border-right-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-interface-theme="ash"] :where([class*="_pageWorkspace_"], [class*="_embeddedModal_"], [class*="_versionsWorkspace_"], [class*="_versionsContainer_"]) {
+  background: rgba(43, 45, 49, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+}
+
+html[data-interface-theme="ash"] :where([class*="_modal_"]:not([class*="_embeddedModal_"])) {
   background: #313338 !important;
-  border-color: rgba(255,255,255,.1) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-html[data-interface-theme="frost"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"], [class*="_topControlBar_"], [class*="_searchFilterRow_"]) {
-  background: rgba(255,255,255,.96) !important;
-  color: #111827 !important;
-  border-color: rgba(15,23,42,.13) !important;
+html[data-interface-theme="ash"] :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+  background: #2b2d31 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html[data-interface-theme="ash"] :where(
+  [class*="_panel_"],
+  [class*="_pageHeading_"],
+  [class*="_topControlBar_"],
+  [class*="_searchFilterRow_"],
+  [class*="_filterBar_"],
+  [class*="_subHeader_"],
+  [class*="_detailsHeader_"],
+  [class*="_settingsNav_"]
+) {
+  background: rgba(49, 51, 56, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-interface-theme="ash"] :where(
+  [class*="_modCard_"],
+  [class*="_categoryCard_"],
+  [class*="_settingGroup_"],
+  [class*="_settingRow_"],
+  [class*="_card_"]:not([class*="_centerCard_"]):not([class*="_versionItem_"]):not([class*="_accountItem_"]),
+  [class*="_itemCard_"]
+) {
+  background: rgba(43, 45, 49, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-interface-theme="ash"] :where([class*="_centerCard_"]) {
+  background: rgba(43, 45, 49, 0.82) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Frost Theme: Pristine light aesthetic with high clarity */
+html[data-interface-theme="frost"] :where([class*="_sidebar_"]) {
+  background: rgba(248, 250, 252, 0.94) !important;
+  border-right-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_pageWorkspace_"], [class*="_embeddedModal_"], [class*="_versionsWorkspace_"], [class*="_versionsContainer_"]) {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_modal_"]:not([class*="_embeddedModal_"])) {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_dropdownMenu_"], [class*="_versionDropdown_"]) {
+  background: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+html[data-interface-theme="frost"] :where(
+  [class*="_panel_"],
+  [class*="_pageHeading_"],
+  [class*="_topControlBar_"],
+  [class*="_searchFilterRow_"],
+  [class*="_filterBar_"],
+  [class*="_subHeader_"],
+  [class*="_detailsHeader_"],
+  [class*="_settingsNav_"]
+) {
+  background: rgba(241, 245, 249, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+html[data-interface-theme="frost"] :where(
+  [class*="_modCard_"],
+  [class*="_categoryCard_"],
+  [class*="_settingGroup_"],
+  [class*="_settingRow_"],
+  [class*="_card_"]:not([class*="_centerCard_"]):not([class*="_versionItem_"]):not([class*="_accountItem_"]),
+  [class*="_itemCard_"]
+) {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+html[data-interface-theme="frost"] :where([class*="_centerCard_"]) {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(15, 23, 42, 0.16) !important;
 }
 
 html[data-interface-theme="frost"] :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"]) :where(h1,h2,h3,strong,p,span,label) {
   color: inherit;
+}
+
+/* MetalForge-inspired motion language: restrained refraction, never a bright blur. */
+@media (prefers-reduced-motion: no-preference) {
+  html.liquid-glass-enabled :where([class*="_modal_"], [class*="_panel_"], [class*="_card_"]) {
+    isolation: isolate;
+  }
+
+  /* Modals stay clean, sharp, and glare-free */
+
+  html.liquid-glass-enabled :where(button, [role="button"], input, select) {
+    transition:
+      transform 180ms cubic-bezier(.16, 1, .3, 1),
+      box-shadow 220ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease,
+      filter 180ms ease !important;
+  }
+
+  html.liquid-glass-enabled :where(button, [role="button"]):not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.07);
+  }
+
+  html.liquid-glass-enabled :where(button, [role="button"]):not(:disabled):active {
+    transform: translateY(1px) scale(.975);
+    filter: brightness(.94);
+  }
+
+  :where([class*="_page_"]) {
+    animation: pageArrive 420ms cubic-bezier(.16, 1, .3, 1) both;
+  }
+
+  :where([class*="_spin_"]) {
+    animation: spin .72s linear infinite;
+  }
+
+  :where([class*="_loading_"]) > :where([class*="_card_"], [class*="_panel_"]) {
+    animation: loadingBreathe 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes liquidSheen {
+  0%, 24% { transform: translateX(-44%) rotate(7deg); opacity: 0; }
+  38% { opacity: .95; }
+  61% { transform: translateX(44%) rotate(7deg); opacity: .72; }
+  76%, 100% { transform: translateX(44%) rotate(7deg); opacity: 0; }
+}
+
+@keyframes pageArrive {
+  from { opacity: 0; transform: translateY(10px) scale(.992); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes loadingBreathe {
+  50% { opacity: .62; transform: scale(.985); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

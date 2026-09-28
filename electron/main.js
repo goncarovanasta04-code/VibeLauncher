@@ -10,6 +10,7 @@ const {
   getFabricVersions,
   getQuiltVersions,
   installVersion,
+  createCustomInstance,
   getLocalVersions,
   deleteVersion,
   getDefaultGameDir,
@@ -232,6 +233,16 @@ ipcMain.handle('versions:getQuilt', async (_, mcVersion) => {
 ipcMain.handle('versions:install', async (_, opts) => {
   const settings = store.get('settings') || {}
   return await installVersion(
+    { ...opts, gameDir: opts.gameDir || settings.gameDir },
+    (progress) => {
+      mainWindow?.webContents.send('install:progress', progress)
+    }
+  )
+})
+
+ipcMain.handle('versions:createCustomInstance', async (_, opts) => {
+  const settings = store.get('settings') || {}
+  return await createCustomInstance(
     { ...opts, gameDir: opts.gameDir || settings.gameDir },
     (progress) => {
       mainWindow?.webContents.send('install:progress', progress)

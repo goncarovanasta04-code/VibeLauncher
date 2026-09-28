@@ -40,8 +40,11 @@ import { configureUiSounds, playUiSound } from '../utils/uiSound'
 
 const SETTING_TABS = [
   { id: 'general', labelKey: 'settings_general', icon: Sliders },
+  { id: 'minecraft', labelKey: 'settings_minecraft', icon: Box },
   { id: 'java', labelKey: 'settings_tab_java', icon: Coffee },
   { id: 'appearance', labelKey: 'settings_tab_appearance', icon: Sparkles },
+  { id: 'sounds', labelKey: 'settings_tab_sounds', icon: Volume2 },
+  { id: 'advanced', labelKey: 'settings_tab_advanced', icon: Radio },
 ]
 
 const GC_PRESETS = [
@@ -82,7 +85,7 @@ const GC_PRESETS = [
   },
 ]
 
-export default function SettingsModal({ onClose, onOpenWelcome }) {
+export default function SettingsModal({ onClose, onOpenWelcome, embedded = false }) {
   const { language, setLanguage, t, languages } = useLanguage()
   const [activeTab, setActiveTab] = useState('general')
 
@@ -408,8 +411,8 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
   ]
 
   return (
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={styles.modal}>
+    <div className={`${styles.overlay} ${embedded ? styles.embedded : ''}`} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`${styles.modal} ${embedded ? styles.embeddedModal : ''}`}>
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerLeft}>
@@ -421,9 +424,9 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
               <span className={styles.subtitle}>{t('settings_subtitle')}</span>
             </div>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} title={t('close')}>
+          {!embedded && <button type="button" className={styles.closeBtn} onClick={onClose} title={t('close')}>
             <X size={16} />
-          </button>
+          </button>}
         </div>
 
         {/* Tab Navigation */}
@@ -491,29 +494,6 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                 </div>
               </div>
 
-              {/* Card 0.5: Onboarding / Tutorial */}
-              {onOpenWelcome && (
-                <div className={styles.card}>
-                  <div className={styles.toggleCard}>
-                    <div className={styles.toggleInfo}>
-                      <span className={styles.toggleTitle}>{t('settings_tutorial_banner')}</span>
-                      <p className={styles.toggleDesc}>
-                        {t('settings_tutorial_banner_desc')}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.quickActionBtn}
-                      style={{ padding: '6px 14px', borderRadius: 6, whiteSpace: 'nowrap' }}
-                      onClick={onOpenWelcome}
-                    >
-                      <Sparkles size={14} />
-                      <span>{t('settings_run_tutorial')}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* Card 1: Game directory */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
@@ -523,7 +503,7 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                 <div className={styles.inputWithBrowse}>
                   <input
                     type="text"
-                    placeholder="%APPDATA%\.minecraft"
+                    placeholder="%APPDATA%\\.minecraft"
                     value={gameDir}
                     onChange={(e) => setGameDir(e.target.value)}
                     className={styles.textInput}
@@ -559,6 +539,54 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                 </div>
               </div>
 
+              {/* Card 3: Version Isolation Toggle */}
+              <div className={styles.card}>
+                <div className={styles.toggleCard}>
+                  <div className={styles.toggleInfo}>
+                    <span className={styles.toggleTitle}>{t('settings_isolate_folders')}</span>
+                    <p className={styles.toggleDesc}>
+                      {t('settings_isolate_folders_desc')}
+                    </p>
+                  </div>
+                  <label className={styles.switch}>
+                    <input
+                      type="checkbox"
+                      checked={isolateVersionFolders}
+                      onChange={(e) => setIsolateVersionFolders(e.target.checked)}
+                    />
+                    <span className={styles.slider} />
+                  </label>
+                </div>
+              </div>
+
+              {/* Card 0.5: Onboarding / Tutorial */}
+              {onOpenWelcome && (
+                <div className={styles.card}>
+                  <div className={styles.toggleCard}>
+                    <div className={styles.toggleInfo}>
+                      <span className={styles.toggleTitle}>{t('settings_tutorial_banner')}</span>
+                      <p className={styles.toggleDesc}>
+                        {t('settings_tutorial_banner_desc')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.quickActionBtn}
+                      style={{ padding: '6px 14px', borderRadius: 6, whiteSpace: 'nowrap' }}
+                      onClick={onOpenWelcome}
+                    >
+                      <Sparkles size={14} />
+                      <span>{t('settings_run_tutorial')}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: MINECRAFT */}
+          {activeTab === 'minecraft' && (
+            <div className={styles.tabContent}>
               {/* Card 2: Auto Screen Resolution */}
               <div className={styles.card}>
                 <div className={styles.cardHeader}>
@@ -585,26 +613,6 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                       </p>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Card 3: Version Isolation Toggle */}
-              <div className={styles.card}>
-                <div className={styles.toggleCard}>
-                  <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}>{t('settings_isolate_folders')}</span>
-                    <p className={styles.toggleDesc}>
-                      {t('settings_isolate_folders_desc')}
-                    </p>
-                  </div>
-                  <label className={styles.switch}>
-                    <input
-                      type="checkbox"
-                      checked={isolateVersionFolders}
-                      onChange={(e) => setIsolateVersionFolders(e.target.checked)}
-                    />
-                    <span className={styles.slider} />
-                  </label>
                 </div>
               </div>
 
@@ -1011,7 +1019,9 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
             </div>
           )}
 
-          {/* TAB 3: ИНТЕРФЕЙС & FPS */}
+          
+
+          {/* TAB 4: ИНТЕРФЕЙС & FPS */}
           {activeTab === 'appearance' && (
             <div className={styles.tabContent}>
               {/* Potato PC Ultra FPS Optimization Card */}
@@ -1081,6 +1091,7 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                 </div>
               </div>
 
+              {/* Card: Liquid Glass */}
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
                   <div className={styles.toggleInfo}>
@@ -1098,27 +1109,6 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                     <div><b>Плавность линзы</b><span>{liquidGlassFps} FPS</span></div>
                     <input type="range" min="15" max="60" step="5" value={liquidGlassFps} onChange={(e) => setLiquidGlassFps(Number(e.target.value))} className={styles.rangeInput} />
                     <p>15 FPS — экономно, 30 FPS — баланс, 60 FPS — максимально плавно и требовательно к GPU.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Card: calm interface sound feedback */}
-              <div className={styles.card}>
-                <div className={styles.toggleCard}>
-                  <div className={styles.toggleInfo}>
-                    <span className={styles.toggleTitle}><Volume2 size={15} /> Звуки интерфейса</span>
-                    <p className={styles.toggleDesc}>Короткие тихие сигналы для кнопок, меню, успеха и ошибок.</p>
-                  </div>
-                  <label className={styles.switch}>
-                    <input type="checkbox" checked={uiSounds} onChange={(e) => setUiSounds(e.target.checked)} />
-                    <span className={styles.slider} />
-                  </label>
-                </div>
-                {uiSounds && (
-                  <div className={styles.soundVolumeRow}>
-                    <span>Громкость</span>
-                    <input type="range" min="0" max="60" value={uiSoundVolume} onChange={(e) => setUiSoundVolume(Number(e.target.value))} className={styles.rangeInput} />
-                    <b>{uiSoundVolume}%</b>
                   </div>
                 )}
               </div>
@@ -1142,7 +1132,52 @@ export default function SettingsModal({ onClose, onOpenWelcome }) {
                   </label>
                 </div>
               </div>
+            </div>
+          )}
 
+          {/* TAB 5: ЗВУКИ */}
+          {activeTab === 'sounds' && (
+            <div className={styles.tabContent}>
+              <div className={styles.card}>
+                <div className={styles.toggleCard}>
+                  <div className={styles.toggleInfo}>
+                    <span className={styles.toggleTitle}><Volume2 size={15} /> Звуки интерфейса</span>
+                    <p className={styles.toggleDesc}>Короткие приятные сигналы при кликах, переходах, успехе и ошибках.</p>
+                  </div>
+                  <label className={styles.switch}>
+                    <input type="checkbox" checked={uiSounds} onChange={(e) => setUiSounds(e.target.checked)} />
+                    <span className={styles.slider} />
+                  </label>
+                </div>
+                {uiSounds && (
+                  <div className={styles.soundVolumeRow} style={{ marginTop: 14 }}>
+                    <span>Громкость</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={uiSoundVolume}
+                      onChange={(e) => setUiSoundVolume(Number(e.target.value))}
+                      className={styles.rangeInput}
+                    />
+                    <b>{uiSoundVolume}%</b>
+                    <button
+                      type="button"
+                      className={styles.quickActionBtn}
+                      onClick={() => playUiSound('click')}
+                      style={{ marginLeft: 12, padding: '4px 12px', fontSize: '11.5px' }}
+                    >
+                      Проверить звук
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: ДОПОЛНИТЕЛЬНО */}
+          {activeTab === 'advanced' && (
+            <div className={styles.tabContent}>
               {/* Card 3: Discord Rich Presence */}
               <div className={styles.card}>
                 <div className={styles.toggleCard}>
