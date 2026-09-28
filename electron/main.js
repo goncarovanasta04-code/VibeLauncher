@@ -329,6 +329,30 @@ ipcMain.handle('mods:installModpack', async (_, opts) => {
   )
 })
 
+ipcMain.handle('mods:importMrpack', async () => {
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: 'Импортировать сборку Modrinth',
+    filters: [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }],
+    properties: ['openFile'],
+  })
+  if (picked.canceled || !picked.filePaths[0]) return { ok: false, canceled: true }
+
+  const settings = store.get('settings') || {}
+  const sourcePath = picked.filePaths[0]
+  return await installModpack(
+    {
+      localFilePath: sourcePath,
+      fileName: path.basename(sourcePath),
+      projectTitle: path.basename(sourcePath, path.extname(sourcePath)),
+      gameDir: settings.gameDir,
+    },
+    (progress) => {
+      mainWindow?.webContents.send('mods:installProgress', progress)
+      mainWindow?.webContents.send('install:progress', progress)
+    }
+  )
+})
+
 ipcMain.handle('mods:getInstalled', async (_, { versionId, gameDir, isolateVersionFolders } = {}) => {
   const settings = store.get('settings') || {}
   const iso =

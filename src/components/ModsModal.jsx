@@ -29,6 +29,7 @@ import {
   HardDrive,
   Users,
   ShieldCheck,
+  FileUp,
 } from 'lucide-react'
 import styles from './ModsModal.module.css'
 import { useLanguage } from '../context/LanguageContext'
@@ -201,6 +202,7 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
 
   // Installing states: { [projectId]: { loading: boolean, progress: number, done: boolean, text: string } }
   const [installStatus, setInstallStatus] = useState({})
+  const [mrpackImport, setMrpackImport] = useState(null)
 
   // Installed tracking
   const [installedItems, setInstalledItems] = useState([])
@@ -294,6 +296,11 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
     if (window.vibe?.onModInstallProgress) {
       window.vibe.onModInstallProgress((data) => {
         if (data?.task) {
+          setMrpackImport((prev) => prev?.loading ? {
+            ...prev,
+            progress: data.current ?? prev.progress,
+            text: data.task,
+          } : prev)
           setInstallStatus((prev) => {
             const keys = Object.keys(prev)
             if (keys.length === 0) return prev
@@ -700,6 +707,37 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
           return copy
         })
       }, 4000)
+    }
+  }
+
+  const handleImportMrpack = async () => {
+    if (!window.vibe?.importMrpack || mrpackImport?.loading) return
+    setMrpackImport({ loading: true, progress: 2, text: 'Выберите экспортированную сборку .mrpack' })
+    try {
+      const result = await window.vibe.importMrpack()
+      if (result?.canceled) {
+        setMrpackImport(null)
+        return
+      }
+      if (!result?.ok) throw new Error(result?.error || 'Не удалось импортировать сборку')
+
+      playUiSound('success')
+      setMrpackImport({ loading: false, done: true, progress: 100, text: `Сборка «${result.label}» готова к запуску` })
+      if (onSelectVersion && result.versionId) {
+        onSelectVersion({
+          id: result.versionId,
+          label: result.label,
+          type: 'modpack',
+          baseVersion: result.baseVersion,
+          isLocal: true,
+          isModpack: true,
+          modpackMeta: result.modpackMeta,
+        })
+      }
+      await loadInstalled()
+    } catch (error) {
+      playUiSound('error')
+      setMrpackImport({ loading: false, error: true, progress: 0, text: error?.message || 'Не удалось импортировать сборку' })
     }
   }
 
@@ -1232,15 +1270,27 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
                   </button>
                 )}
                 {tab === 'modpack' && (
-                  <button
-                    type="button"
-                    className={styles.openFolderBtn}
-                    onClick={() => handleOpenFolder('modpacks')}
-                    title={t('mods_open_folder_modpacks')}
-                  >
-                    <FolderOpen size={13} />
-                    <span>{t('mods_open_folder_modpacks')}</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className={styles.importMrpackBtn}
+                      onClick={handleImportMrpack}
+                      disabled={mrpackImport?.loading}
+                      title="Импортировать экспортированную сборку Modrinth (.mrpack)"
+                    >
+                      {mrpackImport?.loading ? <Loader2 size={13} className={styles.spin} /> : <FileUp size={13} />}
+                      <span>Импорт .mrpack</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.openFolderBtn}
+                      onClick={() => handleOpenFolder('modpacks')}
+                      title={t('mods_open_folder_modpacks')}
+                    >
+                      <FolderOpen size={13} />
+                      <span>{t('mods_open_folder_modpacks')}</span>
+                    </button>
+                  </>
                 )}
                 {tab === 'datapack' && (
                   <button
@@ -1268,6 +1318,18 @@ export default function ModsModal({ activeVersion, localVersions = [], onClose, 
             </div>
 
             {/* Search & Filter Bar */}
+            {tab === 'modpack' && mrpackImport && (
+              <div className={`${styles.mrpackImportStatus} ${mrpackImport.error ? styles.mrpackImportError : ''} ${mrpackImport.done ? styles.mrpackImportDone : ''}`} role="status">
+                <span className={styles.mrpackImportIcon}>
+                  {mrpackImport.error ? <AlertTriangle size={15} /> : mrpackImport.done ? <CheckCircle2 size={15} /> : <Package size={15} />}
+                </span>
+                <div className={styles.mrpackImportCopy}>
+                  <strong>{mrpackImport.error ? 'Импорт не завершён' : mrpackImport.done ? 'Сборка импортирована' : 'Импортируем сборку'}</strong>
+                  <span>{mrpackImport.text}</span>
+                </div>
+                {mrpackImport.loading && <span className={styles.mrpackImportProgress}>{mrpackImport.progress || 0}%</span>}
+              </div>
+            )}
             <div className={styles.searchFilterRow}>
               {tab !== 'installed' ? (
                 <>

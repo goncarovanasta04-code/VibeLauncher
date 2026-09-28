@@ -2,6 +2,8 @@ const axios = require('axios')
 const path = require('path')
 const fs = require('fs')
 const zlib = require('zlib')
+const crypto = require('crypto')
+const yauzl = require('yauzl')
 const { app, shell } = require('electron')
 const { installVersion } = require('./versions')
 
@@ -17,6 +19,25 @@ function getSafeVersionId(versionId) {
   const cleaned = path.basename(versionId.trim())
   if (!cleaned || cleaned === '.' || cleaned === '..') return null
   return cleaned
+}
+
+function getSafeArchiveDestination(baseDir, relativePath) {
+  const normal = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!normal || normal.includes('\0')) return null
+  const destination = path.resolve(baseDir, normal)
+  const base = path.resolve(baseDir) + path.sep
+  return destination.startsWith(base) ? destination : null
+}
+
+function verifyMrpackFile(buffer, hashes = {}) {
+  for (const [algorithm, expected] of Object.entries(hashes || {})) {
+    if (!expected || !crypto.getHashes().includes(algorithm)) continue
+    const actual = crypto.createHash(algorithm).update(buffer).digest('hex')
+    if (actual.toLowerCase() !== String(expected).toLowerCase()) {
+      throw new Error(`Проверка целостности не пройдена (${algorithm})`)
+    }
+    return
+  }
 }
 
 function getVersionContentDir(rootDir, versionId, contentType, isolateVersionFolders = true) {
@@ -789,12 +810,144 @@ function extractAllZipEntries(buffer) {
   return entries
 }
 
+function getMrpackOverrideRelativePath(entryName) {
+  const normalized = String(entryName || '').replace(/\\/g, '/').replace(/^\/+/, '')
+  if (normalized.startsWith('overrides/')) return normalized.slice('overrides/'.length)
+  if (normalized.startsWith('client-overrides/')) return normalized.slice('client-overrides/'.length)
+  return null
+}
+
+/**
+ * Reads a Modrinth index without loading the whole archive into memory.
+ * yauzl supports ZIP64 archives, which are common for large official Modrinth packs.
+ */
+function readMrpackIndexFromFile(filePath) {
+  return new Promise((resolve, reject) => {
+    let zip = null
+    let settled = false
+    let foundIndex = false
+
+    const fail = (error) => {
+      if (settled) return
+      settled = true
+      try { zip?.close() } catch (_) {}
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+    const succeed = (value) => {
+      if (settled) return
+      settled = true
+      try { zip?.close() } catch (_) {}
+      resolve(value)
+    }
+
+    yauzl.open(filePath, { lazyEntries: true, autoClose: true, validateEntrySizes: true }, (openError, archive) => {
+      if (openError) return fail(new Error(`Не удалось открыть .mrpack: ${openError.message}`))
+      zip = archive
+      zip.on('error', fail)
+      zip.on('entry', (entry) => {
+        const entryName = String(entry.fileName || '').replace(/\\/g, '/')
+        if (entryName !== 'modrinth.index.json' && !entryName.endsWith('/modrinth.index.json')) {
+          zip.readEntry()
+          return
+        }
+
+        foundIndex = true
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError) return fail(new Error(`Не удалось прочитать modrinth.index.json: ${streamError.message}`))
+          const chunks = []
+          let size = 0
+          stream.on('data', (chunk) => {
+            size += chunk.length
+            if (size > 5 * 1024 * 1024) {
+              stream.destroy(new Error('Файл modrinth.index.json слишком большой'))
+              return
+            }
+            chunks.push(chunk)
+          })
+          stream.on('error', fail)
+          stream.on('end', () => {
+            try {
+              succeed(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+            } catch (parseError) {
+              fail(new Error(`Не удалось прочитать modrinth.index.json: ${parseError.message}`))
+            }
+          })
+        })
+      })
+      zip.on('end', () => {
+        if (!foundIndex) fail(new Error('Файл modrinth.index.json не найден внутри пакета сборки'))
+      })
+      zip.readEntry()
+    })
+  })
+}
+
+/** Extracts only overrides from a local .mrpack, preserving paths safely and streaming every file. */
+function extractMrpackOverridesFromFile(filePath, targetVersionDir, onProgress) {
+  return new Promise((resolve, reject) => {
+    let zip = null
+    let copied = 0
+    let settled = false
+    const fail = (error) => {
+      if (settled) return
+      settled = true
+      try { zip?.close() } catch (_) {}
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
+    const finish = () => {
+      if (settled) return
+      settled = true
+      resolve(copied)
+    }
+    const next = () => {
+      if (!settled) zip.readEntry()
+    }
+
+    yauzl.open(filePath, { lazyEntries: true, autoClose: true, validateEntrySizes: true }, (openError, archive) => {
+      if (openError) return fail(new Error(`Не удалось открыть .mrpack для извлечения: ${openError.message}`))
+      zip = archive
+      zip.on('error', fail)
+      zip.on('end', finish)
+      zip.on('entry', (entry) => {
+        const relativePath = getMrpackOverrideRelativePath(entry.fileName)
+        if (!relativePath || entry.fileName.endsWith('/')) {
+          next()
+          return
+        }
+
+        const destination = getSafeArchiveDestination(targetVersionDir, relativePath)
+        if (!destination) {
+          fail(new Error(`Недопустимый путь в overrides: ${relativePath}`))
+          return
+        }
+        fs.mkdirSync(path.dirname(destination), { recursive: true })
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError) return fail(new Error(`Не удалось извлечь ${relativePath}: ${streamError.message}`))
+          const output = fs.createWriteStream(destination)
+          stream.on('error', fail)
+          output.on('error', fail)
+          output.on('close', () => {
+            copied += 1
+            if (onProgress && copied % 25 === 0) {
+              onProgress({ task: `Применение настроек сборки: ${copied} файлов`, current: 96, total: 100 })
+            }
+            next()
+          })
+          stream.pipe(output)
+        })
+      })
+      zip.readEntry()
+    })
+  })
+}
+
 /**
  * Installs a Modrinth modpack (.mrpack) as a complete standalone version!
  */
 async function installModpack(
   {
     fileUrl,
+    localFilePath,
     fileName,
     projectId,
     projectSlug,
@@ -808,30 +961,50 @@ async function installModpack(
   const rootDir = gameDir && gameDir.trim() ? gameDir.trim() : getDefaultGameDir()
 
   try {
-    if (onProgress) onProgress({ task: `Загрузка сборки ${projectTitle || 'modpack'}...`, current: 5, total: 100 })
+    if (onProgress) onProgress({ task: localFilePath ? 'Проверка выбранной сборки (.mrpack)...' : `Загрузка сборки ${projectTitle || 'modpack'}...`, current: 5, total: 100 })
 
-    // Step 1: Download .mrpack archive
-    const mrpackRes = await axios.get(fileUrl, {
-      responseType: 'arraybuffer',
-      timeout: 120000,
-      onDownloadProgress: (evt) => {
-        if (onProgress && evt.total) {
-          const pct = Math.min(25, Math.round((evt.loaded / evt.total) * 20) + 5)
-          onProgress({ task: `Загрузка пакета сборки (.mrpack)...`, current: pct, total: 100 })
-        }
-      },
-    })
-
-    const zipBuffer = Buffer.from(mrpackRes.data)
-    const entries = extractAllZipEntries(zipBuffer)
-
-    // Step 2: Locate and parse modrinth.index.json
-    const indexEntry = entries.find((e) => e.name === 'modrinth.index.json' || e.name.endsWith('/modrinth.index.json'))
-    if (!indexEntry) {
-      throw new Error('Файл modrinth.index.json не найден внутри пакета сборки')
+    // Step 1: read a local archive stream or download a Modrinth archive.
+    let zipBuffer = null
+    let indexJson = null
+    let resolvedLocalFile = null
+    if (localFilePath) {
+      resolvedLocalFile = path.resolve(localFilePath)
+      if (path.extname(resolvedLocalFile).toLowerCase() !== '.mrpack' || !fs.existsSync(resolvedLocalFile)) {
+        throw new Error('Выберите существующий файл сборки в формате .mrpack')
+      }
+      const stat = fs.statSync(resolvedLocalFile)
+      // Modrinth packs may include worlds, maps and resource assets in overrides.
+      // Keep a high safety ceiling while processing every file as a stream.
+      if (stat.size < 22 || stat.size > 16 * 1024 * 1024 * 1024) {
+        throw new Error('Размер .mrpack некорректен или превышает 16 ГБ')
+      }
+      // Do not use readFileSync here: a legitimate Modrinth pack can be ZIP64 and exceed 1 GB.
+      indexJson = await readMrpackIndexFromFile(resolvedLocalFile)
+    } else {
+      if (!fileUrl) throw new Error('Не указана ссылка на файл .mrpack')
+      const mrpackRes = await axios.get(fileUrl, {
+        responseType: 'arraybuffer',
+        timeout: 120000,
+        onDownloadProgress: (evt) => {
+          if (onProgress && evt.total) {
+            const pct = Math.min(25, Math.round((evt.loaded / evt.total) * 20) + 5)
+            onProgress({ task: 'Загрузка пакета сборки (.mrpack)...', current: pct, total: 100 })
+          }
+        },
+      })
+      zipBuffer = Buffer.from(mrpackRes.data)
     }
 
-    const indexJson = JSON.parse(indexEntry.data.toString('utf8'))
+    // Step 2: Locate and parse modrinth.index.json
+    let entries = []
+    if (!indexJson) {
+      entries = extractAllZipEntries(zipBuffer)
+      const indexEntry = entries.find((e) => e.name === 'modrinth.index.json' || e.name.endsWith('/modrinth.index.json'))
+      if (!indexEntry) {
+        throw new Error('Файл modrinth.index.json не найден внутри пакета сборки')
+      }
+      indexJson = JSON.parse(indexEntry.data.toString('utf8'))
+    }
     const deps = indexJson.dependencies || {}
     const mcVersion = deps.minecraft || '1.20.1'
 
@@ -868,13 +1041,8 @@ async function installModpack(
     // Ensure multiple versions or additional instances of the same modpack can be installed without collision
     let counter = 2
     while (fs.existsSync(targetVersionDir)) {
-      const existingMetaPath = path.join(targetVersionDir, '.vibelauncher_modpack.json')
-      if (fs.existsSync(existingMetaPath)) {
-        customVersionId = `${titleSlug}-${mcVersion}${cleanVerNum}-${counter++}`
-        targetVersionDir = path.join(rootDir, 'versions', customVersionId)
-      } else {
-        break
-      }
+      customVersionId = `${titleSlug}-${mcVersion}${cleanVerNum}-${counter++}`
+      targetVersionDir = path.join(rootDir, 'versions', customVersionId)
     }
 
     if (onProgress) {
@@ -917,7 +1085,8 @@ async function installModpack(
       await Promise.all(
         chunk.map(async (modFile) => {
           const modRelPath = modFile.path
-          const modDestPath = path.join(targetVersionDir, modRelPath)
+          const modDestPath = getSafeArchiveDestination(targetVersionDir, modRelPath)
+          if (!modDestPath) throw new Error(`Недопустимый путь в сборке: ${modRelPath}`)
           const modDestDir = path.dirname(modDestPath)
           if (!fs.existsSync(modDestDir)) {
             fs.mkdirSync(modDestDir, { recursive: true })
@@ -935,12 +1104,18 @@ async function installModpack(
                 responseType: 'arraybuffer',
                 timeout: 45000,
               })
-              fs.writeFileSync(modDestPath, Buffer.from(dRes.data))
+              const payload = Buffer.from(dRes.data)
+              verifyMrpackFile(payload, modFile.hashes)
+              fs.writeFileSync(modDestPath, payload)
               downloaded = true
               break
             } catch (dErr) {
               console.warn(`[Modpack] Failed download from ${downloadUrl}:`, dErr.message)
             }
+          }
+
+          if (!downloaded) {
+            throw new Error(`Не удалось скачать обязательный файл: ${path.basename(modRelPath)}`)
           }
 
           downloadedCount++
@@ -961,17 +1136,18 @@ async function installModpack(
       onProgress({ task: `Применение настроек и конфигураций сборки...`, current: 93, total: 100 })
     }
 
-    for (const entry of entries) {
-      if (entry.isDirectory) continue
-      let relativePath = null
-      if (entry.name.startsWith('overrides/')) {
-        relativePath = entry.name.substring('overrides/'.length)
-      } else if (entry.name.startsWith('client-overrides/')) {
-        relativePath = entry.name.substring('client-overrides/'.length)
-      }
+    if (resolvedLocalFile) {
+      await extractMrpackOverridesFromFile(resolvedLocalFile, targetVersionDir, onProgress)
+    } else {
+      for (const entry of entries) {
+        if (entry.isDirectory) continue
+        const relativePath = getMrpackOverrideRelativePath(entry.name)
+        if (!relativePath || !relativePath.trim()) continue
 
-      if (relativePath && relativePath.trim()) {
-        const overrideDest = path.join(targetVersionDir, relativePath)
+        const overrideDest = getSafeArchiveDestination(targetVersionDir, relativePath)
+        if (!overrideDest) {
+          throw new Error(`Недопустимый путь в overrides: ${relativePath}`)
+        }
         const overrideDir = path.dirname(overrideDest)
         if (!fs.existsSync(overrideDir)) {
           fs.mkdirSync(overrideDir, { recursive: true })
@@ -995,6 +1171,7 @@ async function installModpack(
       loader: loader,
       loaderVersion: loaderVersion,
       icon: projectIcon || null,
+      importedFrom: localFilePath ? 'mrpack-file' : 'modrinth',
       installedAt: Date.now(),
     }
     fs.writeFileSync(

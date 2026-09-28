@@ -74,6 +74,13 @@ export default function LaunchErrorModal({
             </div>
           </div>
 
+          {code !== undefined && code !== null && (
+            <div className={styles.diagnosticNotice}>
+              <AlertTriangle size={14} />
+              <span>Причина определена по журналу запуска и коду {code}. Это автоматическая диагностика: при неполном логе информация может быть неточной.</span>
+            </div>
+          )}
+
           <div className={styles.tipBox}>
             💡 <strong>{t('crash_tip_prefix')}</strong> {t('crash_tip')}
           </div>

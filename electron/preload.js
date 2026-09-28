@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('vibe', {
   installPerformanceProfile: (opts) => ipcRenderer.invoke('mods:installPerformanceProfile', opts),
   installModFile: (opts) => ipcRenderer.invoke('mods:installFile', opts),
   installModpack: (opts) => ipcRenderer.invoke('mods:installModpack', opts),
+  importMrpack: () => ipcRenderer.invoke('mods:importMrpack'),
   getInstalledMods: (versionId, gameDir) => ipcRenderer.invoke('mods:getInstalled', { versionId, gameDir }),
   toggleModFile: (filePath) => ipcRenderer.invoke('mods:toggle', filePath),
   deleteModFile: (filePath) => ipcRenderer.invoke('mods:delete', filePath),

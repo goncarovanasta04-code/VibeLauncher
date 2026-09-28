@@ -1125,9 +1125,12 @@ function analyzeCrashLogs(logs, exitCode) {
     fullText.includes('Incompatible mod set') ||
     fullText.includes('ModResolutionException') ||
     fullText.includes('Mixin transformation failed') ||
-    fullText.includes('MixinApplyError')
+    fullText.includes('MixinApplyError') ||
+    fullText.includes('Mod resolution encountered an incompatible selection') ||
+    fullText.includes('requires version') ||
+    fullText.includes('is missing')
   ) {
-    return 'Конфликт или несовместимость установленных модов. Проверьте папку mods на ошибки версий.'
+    return 'Конфликт или несовместимость модов/загрузчика. Проверьте версию Minecraft, Fabric/Forge и полный набор модов из сборки.'
   }
   if (
     fullText.includes('NoClassDefFoundError') ||
